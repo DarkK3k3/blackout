@@ -12,7 +12,7 @@ export function openBlackoutStore(): Promise<BlackoutStore> {
   if (!storePromise) {
     storePromise = (async () => {
       const key = await getOrCreateDbKey();
-      const executor = createOpSqliteExecutor('blackout.db', key);
+      const executor = await createOpSqliteExecutor('blackout.db', key);
       return BlackoutStore.open(executor);
     })();
   }
