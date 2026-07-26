@@ -43,8 +43,14 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
 
-      - name: Installer les dependances
+      - name: Installer les dependances de l'app
         working-directory: app
+        run: npm ci
+
+      # Deux tests lancent le VRAI serveur relais en sous-processus :
+      # il lui faut ses propres dependances, sinon ils echouent.
+      - name: Installer les dependances du relais
+        working-directory: relay-server
         run: npm ci
 
       - name: Verifier que les tests passent
