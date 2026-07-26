@@ -23,7 +23,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 60
 
     env:
@@ -35,6 +35,23 @@ jobs:
       EXPO_PUBLIC_DISPLAY_NAME: ${{ inputs.display_name }}
 
     steps:
+      # expo-modules-jsi expose un paquet Swift en swift-tools-version 6.2 :
+      # un Xcode trop ancien echoue sur "Could not resolve package
+      # dependencies". On prend donc systematiquement le plus recent installe.
+      - name: Selectionner le Xcode le plus recent
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app
+          NEWEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$NEWEST" ]; then sudo xcode-select -s "$NEWEST"; fi
+          {
+            echo "### Environnement de compilation"
+            echo '```'
+            xcodebuild -version
+            swift --version
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -100,14 +117,18 @@ jobs:
         run: |
           {
             echo "### Sortie de xcodebuild"
-            echo '```'
-            if [ -f xcodebuild.log ]; then
-              grep -E "error:|warning: (Run script|no rule)|BUILD (FAILED|SUCCEEDED)|\*\* " xcodebuild.log | head -40 \
-                || tail -40 xcodebuild.log
-            else
+            if [ ! -f xcodebuild.log ]; then
               echo "aucun journal — xcodebuild n'a pas demarre"
+            else
+              echo "#### Erreurs (avec contexte)"
+              echo '```'
+              grep -n -E "error:|BUILD FAILED" -A 12 xcodebuild.log | head -100 || echo "(aucune ligne 'error:')"
+              echo '```'
+              echo "#### 60 dernieres lignes"
+              echo '```'
+              tail -60 xcodebuild.log
+              echo '```'
             fi
-            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Empaqueter en .ipa
