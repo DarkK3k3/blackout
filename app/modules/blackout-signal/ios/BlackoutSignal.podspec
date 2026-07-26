@@ -51,7 +51,12 @@ Pod::Spec.new do |s|
     # `-load_hidden` rend prives les symboles de libsignal : ses fonctions
     # restent utilisables par notre module, mais ne peuvent plus etre
     # captees par SQLCipher, qui retrouve ainsi le vrai OpenSSL.
-    'OTHER_LDFLAGS' => '$(inherited) -load_hidden $(OBJROOT)/Pods.build/libsignal_ffi/target/$(CARGO_BUILD_TARGET)/release/libsignal_ffi.a',
+    # La forme `-Wl,-load_hidden,<chemin>` est un SEUL mot pour Xcode.
+    # Ecrit en deux mots (`-load_hidden <chemin>`), CocoaPods fusionne les
+    # reglages de tous les pods et peut les separer : `-load_hidden` se
+    # retrouvait alors accole au drapeau du pod suivant, et la compilation
+    # echouait sur « Build input file cannot be found: '-lop-sqlite' ».
+    'OTHER_LDFLAGS' => '$(inherited) -Wl,-load_hidden,$(OBJROOT)/Pods.build/libsignal_ffi/target/$(CARGO_BUILD_TARGET)/release/libsignal_ffi.a',
   }
 
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
