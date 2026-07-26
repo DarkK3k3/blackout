@@ -65,9 +65,22 @@ jobs:
         working-directory: app/ios
         run: pod install
 
+      - name: Verifier que le projet Xcode existe
+        working-directory: app
+        run: |
+          set -euo pipefail
+          test -d ios || { echo "::error::le dossier ios/ n'a pas ete genere"; exit 1; }
+          test -f ios/Blackout.xcworkspace/contents.xcworkspacedata \
+            || { echo "::error::workspace absent — pod install a echoue"; ls -la ios; exit 1; }
+          echo "Schemes disponibles :"
+          xcodebuild -workspace ios/Blackout.xcworkspace -list
+
       - name: Compiler SANS signature
         working-directory: app/ios
+        # `set -o pipefail` est INDISPENSABLE : sans lui, le code de sortie
+        # est celui de `tee`, et un echec de Xcode passerait pour un succes.
         run: |
+          set -o pipefail
           xcodebuild \
             -workspace Blackout.xcworkspace \
             -scheme Blackout \
@@ -79,24 +92,62 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
             EXPANDED_CODE_SIGN_IDENTITY="" \
-            | tail -40
+            2>&1 | tee xcodebuild.log
+
+      - name: Publier les erreurs de compilation dans le resume
+        if: always()
+        working-directory: app/ios
+        run: |
+          {
+            echo "### Sortie de xcodebuild"
+            echo '```'
+            if [ -f xcodebuild.log ]; then
+              grep -E "error:|warning: (Run script|no rule)|BUILD (FAILED|SUCCEEDED)|\*\* " xcodebuild.log | head -40 \
+                || tail -40 xcodebuild.log
+            else
+              echo "aucun journal — xcodebuild n'a pas demarre"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Empaqueter en .ipa
         working-directory: app/ios
         run: |
+          set -euo pipefail
           APP_PATH="build/Build/Products/Release-iphoneos/Blackout.app"
           if [ ! -d "$APP_PATH" ]; then
             echo "::error::Blackout.app introuvable — la compilation a echoue"
             ls -R build/Build/Products || true
             exit 1
           fi
+          # Une app iOS reelle pese des dizaines de Mo : un bundle quasi vide
+          # signifie que Xcode a echoue sans le dire.
+          SIZE_KB=$(du -sk "$APP_PATH" | cut -f1)
+          echo "Taille du bundle : ${SIZE_KB} Ko"
+          if [ "$SIZE_KB" -lt 2000 ]; then
+            echo "::error::bundle suspect (${SIZE_KB} Ko) — compilation incomplete"
+            find "$APP_PATH" | head -30
+            exit 1
+          fi
+          test -f "$APP_PATH/Blackout" || { echo "::error::binaire executable absent"; exit 1; }
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           zip -qry Blackout-unsigned.ipa Payload
           echo "IPA produit : $(du -h Blackout-unsigned.ipa | cut -f1)"
+          echo "IPA : $(du -h Blackout-unsigned.ipa | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
           name: Blackout-unsigned-ipa
           path: app/ios/Blackout-unsigned.ipa
           retention-days: 30
+          if-no-files-found: error
+
+      - name: Journal complet de compilation (pour diagnostic)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: app/ios/xcodebuild.log
+          retention-days: 7
+          if-no-files-found: ignore
