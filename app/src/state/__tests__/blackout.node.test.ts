@@ -125,3 +125,24 @@ async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 15_000): P
   }
   throw new Error('condition non atteinte dans le delai imparti');
 }
+
+test('les reglages priment sur les valeurs de compilation', async () => {
+  const store = await BlackoutStore.open(createNodeSqlExecutor());
+
+  const defauts = { relayUrl: 'https://valeur-de-compilation.example', displayName: 'Moi' };
+
+  // Sans reglage enregistre, on retombe sur les valeurs du build
+  expect(await Blackout.loadSettings(store, defauts)).toEqual(defauts);
+
+  // Une fois enregistres, ce sont eux qui gagnent — sans recompiler
+  await Blackout.saveSettings(store, { relayUrl: 'https://mon-relais.example/  ', displayName: '  Kevin ' });
+  const charges = await Blackout.loadSettings(store, defauts);
+  expect(charges.relayUrl).toBe('https://mon-relais.example'); // espaces et / final nettoyes
+  expect(charges.displayName).toBe('Kevin');
+});
+
+test('testRelay valide une adresse et rejette ce qui n en est pas une', async () => {
+  await expect(Blackout.testRelay('pas-une-url')).rejects.toThrow(/https/);
+  await expect(Blackout.testRelay(serverUrl)).resolves.toBeUndefined();
+  await expect(Blackout.testRelay(serverUrl + '/v1')).rejects.toThrow();
+});

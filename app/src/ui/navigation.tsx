@@ -13,6 +13,7 @@ import { ChatListScreen } from './screens/ChatListScreen';
 import { ConversationScreen, type ChatMessage } from './screens/ConversationScreen';
 import { VerificationScreen } from './screens/VerificationScreen';
 import { AddContactScreen } from './screens/AddContactScreen';
+import { SettingsScreen, type TestState } from './screens/SettingsScreen';
 import { LazyQrScanner } from './components/LazyQrScanner';
 import { colors, fonts, space, type } from './theme/tokens';
 import { RELAY_URL, MY_DISPLAY_NAME } from '../config';
@@ -22,6 +23,7 @@ type RootStackParamList = {
   Conversation: { contactId: string; title: string };
   Verification: { contactId: string; title: string };
   AddContact: undefined;
+  Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -49,6 +51,7 @@ const useBlackout = () => {
 
 export function BlackoutApp() {
   const [app, setApp] = React.useState<Blackout | null>(null);
+  const [store, setStore] = React.useState<Awaited<ReturnType<typeof openBlackoutStore>> | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [relayConnected, setRelayConnected] = React.useState(false);
   const [tick, setTick] = React.useState(0); // force le rafraichissement des listes
@@ -58,7 +61,15 @@ export function BlackoutApp() {
     (async () => {
       try {
         const store = await openBlackoutStore();
-        instance = new Blackout(store, nativeSignalBridge, RELAY_URL, MY_DISPLAY_NAME);
+        // Les reglages enregistres priment sur les valeurs de
+        // compilation : changer de relais ne doit jamais imposer de
+        // recompiler l'application.
+        const settings = await Blackout.loadSettings(store, {
+          relayUrl: RELAY_URL,
+          displayName: MY_DISPLAY_NAME,
+        });
+        setStore(store);
+        instance = new Blackout(store, nativeSignalBridge, settings.relayUrl, settings.displayName);
         await instance.init();
         await instance.startListening(
           () => setTick((t) => t + 1),
@@ -115,6 +126,9 @@ export function BlackoutApp() {
           <Stack.Screen name="AddContact" options={{ title: 'NOUVEAU CONTACT' }}>
             {(props) => <AddContactContainer {...props} />}
           </Stack.Screen>
+          <Stack.Screen name="Settings" options={{ title: 'REGLAGES' }}>
+            {(props) => <SettingsContainer {...props} store={store} />}
+          </Stack.Screen>
         </Stack.Navigator>
       </NavigationContainer>
     </BlackoutContext.Provider>
@@ -143,6 +157,56 @@ function ChatsContainer({ navigation, relayConnected, refreshKey }: any) {
         navigation.navigate('Conversation', { contactId: id, title: chat?.title ?? 'Conversation' });
       }}
       onAddContact={() => navigation.navigate('AddContact')}
+      onOpenSettings={() => navigation.navigate('Settings')}
+    />
+  );
+}
+
+function SettingsContainer({ navigation, store }: any) {
+  const app = useBlackout();
+  const [relayUrl, setRelayUrl] = React.useState('');
+  const [displayName, setDisplayName] = React.useState('');
+  const [myKey, setMyKey] = React.useState('');
+  const [testState, setTestState] = React.useState<TestState>({ kind: 'idle' });
+
+  React.useEffect(() => {
+    if (!store) return;
+    void Blackout.loadSettings(store, { relayUrl: RELAY_URL, displayName: MY_DISPLAY_NAME }).then((s) => {
+      setRelayUrl(s.relayUrl);
+      setDisplayName(s.displayName);
+    });
+    void store.getIdentity().then((id: { publicKey: string } | null) => {
+      if (id) setMyKey((id.publicKey.replace(/[^A-Za-z0-9]/g, '').slice(0, 16).match(/.{1,4}/g) ?? []).join(' '));
+    });
+  }, [store]);
+
+  return (
+    <SettingsScreen
+      relayUrl={relayUrl}
+      displayName={displayName}
+      myPublicKeyShort={myKey}
+      testState={testState}
+      onChangeRelayUrl={(v) => {
+        setRelayUrl(v);
+        setTestState({ kind: 'idle' });
+      }}
+      onChangeDisplayName={setDisplayName}
+      onTest={() => {
+        setTestState({ kind: 'testing' });
+        void Blackout.testRelay(relayUrl)
+          .then(() => setTestState({ kind: 'ok' }))
+          .catch((e) => setTestState({ kind: 'failed', message: e instanceof Error ? e.message : String(e) }));
+      }}
+      onSave={() => {
+        if (!store) return;
+        void Blackout.saveSettings(store, { relayUrl, displayName }).then(() => {
+          Alert.alert(
+            'Reglages enregistres',
+            'Ferme puis rouvre Blackout pour te connecter au nouveau relais.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }],
+          );
+        });
+      }}
     />
   );
 }

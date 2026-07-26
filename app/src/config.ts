@@ -12,6 +12,6 @@
 // stable, voir relay-server/README.md (tunnel nomme, ou portage vers
 // Cloudflare Workers).
 export const RELAY_URL =
-  process.env.EXPO_PUBLIC_RELAY_URL ?? 'https://subsection-ebook-condos-shine.trycloudflare.com';
+  process.env.EXPO_PUBLIC_RELAY_URL ?? 'https://matches-weight-pregnancy-crm.trycloudflare.com';
 
 export const MY_DISPLAY_NAME = process.env.EXPO_PUBLIC_DISPLAY_NAME ?? 'Kevin';

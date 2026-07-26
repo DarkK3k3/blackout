@@ -219,6 +219,17 @@ export class BlackoutStore {
     );
   }
 
+  // --- reglages ---
+
+  async getSetting(key: string): Promise<string | null> {
+    const { rows } = await this.db.execute('SELECT value FROM settings WHERE key = ?', [key]);
+    return rows[0] ? String(rows[0].value) : null;
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    await this.db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
+  }
+
   // --- boites d'entree ---
 
   /** Boite creee pour un QR d'invitation, pas encore utilisee. */

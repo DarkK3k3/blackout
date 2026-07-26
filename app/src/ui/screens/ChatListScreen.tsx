@@ -26,6 +26,7 @@ export interface ChatListScreenProps {
   meshActive: boolean;
   onOpenChat: (id: string) => void;
   onAddContact: () => void;
+  onOpenSettings?: () => void;
 }
 
 function timeLabel(ts: number | null): string {
@@ -44,6 +45,7 @@ export function ChatListScreen({
   meshActive,
   onOpenChat,
   onAddContact,
+  onOpenSettings,
 }: ChatListScreenProps) {
   return (
     <View style={styles.root}>
@@ -52,6 +54,16 @@ export function ChatListScreen({
       <View style={styles.header}>
         <LogoMark size={34} />
         <Text style={styles.brand}>BLACKOUT</Text>
+        {onOpenSettings ? (
+          <Pressable
+            onPress={onOpenSettings}
+            accessibilityRole="button"
+            accessibilityLabel="Reglages"
+            style={styles.settingsButton}
+          >
+            <Text style={styles.settingsGlyph}>⌘</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {/* Panneau de controle : les etats de securite, valorises */}
@@ -133,7 +145,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingBottom: space.md,
   },
-  brand: { ...type.hero, color: colors.text },
+  brand: { ...type.hero, color: colors.text, flex: 1 },
+  settingsButton: { padding: space.sm },
+  settingsGlyph: { color: colors.textDim, fontSize: 20 },
   statusPanel: { marginHorizontal: space.lg, marginBottom: space.lg },
   statusInner: {
     flexDirection: 'row',

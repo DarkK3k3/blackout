@@ -53,6 +53,39 @@ export class Blackout {
     this.relay = new RelayClient(serverUrl);
   }
 
+  /**
+   * Reglages enregistres (adresse du relais, nom affiche). Ils priment
+   * sur les valeurs de compilation : changer de relais ne doit jamais
+   * imposer de recompiler l'app.
+   */
+  static async loadSettings(
+    store: BlackoutStore,
+    defaults: { relayUrl: string; displayName: string },
+  ): Promise<{ relayUrl: string; displayName: string }> {
+    return {
+      relayUrl: (await store.getSetting('relayUrl')) ?? defaults.relayUrl,
+      displayName: (await store.getSetting('displayName')) ?? defaults.displayName,
+    };
+  }
+
+  static async saveSettings(
+    store: BlackoutStore,
+    values: { relayUrl: string; displayName: string },
+  ): Promise<void> {
+    await store.setSetting('relayUrl', values.relayUrl.trim().replace(/\/+$/, ''));
+    await store.setSetting('displayName', values.displayName.trim());
+  }
+
+  /** Verifie qu'une adresse repond comme un relais Blackout. */
+  static async testRelay(url: string): Promise<void> {
+    const clean = url.trim().replace(/\/+$/, '');
+    if (!/^https?:\/\/.+/.test(clean)) throw new Error("l'adresse doit commencer par https://");
+    const res = await fetch(`${clean}/healthz`);
+    if (!res.ok) throw new Error(`le serveur repond ${res.status}`);
+    const body = await res.json();
+    if (body?.ok !== true) throw new Error("ce serveur ne repond pas comme un relais Blackout");
+  }
+
   async init(): Promise<void> {
     await this.sessions.ensureIdentity();
   }

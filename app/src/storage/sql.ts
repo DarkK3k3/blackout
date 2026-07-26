@@ -100,6 +100,16 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_inboxes_contact ON inboxes (contact_id);
   `,
+  // v3 — reglages modifiables dans l'app.
+  // L'adresse du relais etait figee a la compilation : en changer
+  // imposait un rebuild complet et une reinstallation. Elle vit
+  // desormais ici, donc modifiable depuis l'ecran Reglages.
+  `
+  CREATE TABLE settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
 ];
 
 /** Applique les migrations manquantes (user_version de SQLite). */
