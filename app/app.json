@@ -33,6 +33,7 @@
     "plugins": [
       "./plugins/withLibsignalPod",
       "./plugins/withDesugaring",
+      "./plugins/withSqlcipherCommonCrypto",
       [
         "expo-build-properties",
         {
