@@ -38,7 +38,20 @@ Pod::Spec.new do |s|
     'CARGO_BUILD_TARGET[sdk=iphonesimulator*][arch=*]' => 'x86_64-apple-ios',
     'CARGO_BUILD_TARGET[sdk=iphoneos*]' => 'aarch64-apple-ios',
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'x86_64',
-    'OTHER_LDFLAGS' => '$(inherited) $(OBJROOT)/Pods.build/libsignal_ffi/target/$(CARGO_BUILD_TARGET)/release/libsignal_ffi.a',
+    # `-load_hidden` est INDISPENSABLE ici, pas un detail d'optimisation.
+    #
+    # libsignal_ffi.a embarque BoringSSL, et op-sqlite embarque OpenSSL
+    # (pour SQLCipher). Les deux exportent LES MEMES noms de fonctions
+    # (PKCS5_PBKDF2_HMAC, HMAC_Init_ex, EVP_sha512…) avec des structures
+    # internes differentes. Sans cette option, l'editeur de liens melange
+    # les deux : SQLCipher appelait la version BoringSSL en lui passant
+    # des structures OpenSSL, et l'app plantait dans sha512_block_data_order
+    # sur un pointeur invalide (crash iOS du 2026-07-26).
+    #
+    # `-load_hidden` rend prives les symboles de libsignal : ses fonctions
+    # restent utilisables par notre module, mais ne peuvent plus etre
+    # captees par SQLCipher, qui retrouve ainsi le vrai OpenSSL.
+    'OTHER_LDFLAGS' => '$(inherited) -load_hidden $(OBJROOT)/Pods.build/libsignal_ffi/target/$(CARGO_BUILD_TARGET)/release/libsignal_ffi.a',
   }
 
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
