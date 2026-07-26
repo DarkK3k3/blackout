@@ -61,7 +61,9 @@ function tokenMatches(candidate, storedHashHex) {
  * casse, avec des tirets et underscores) ne survit pas a ce
  * passage — les caracteres sont perdus a la normalisation.
  */
-const INVITE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+// Meme alphabet Crockford que le client (app/src/crypto/inviteCode.ts) :
+// 32 caracteres exactement, sans I, L, O ni U.
+const INVITE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const INVITE_ID_LENGTH = 16; // ~78 bits, largement assez
 
 function randomInviteId() {

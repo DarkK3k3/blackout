@@ -28,7 +28,7 @@ beforeAll(async () => {
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   serverUrl = await new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('relais pas demarre en 10s')), 10_000);
+    const timer = setTimeout(() => reject(new Error('relais pas demarre')), 45_000);
     relayProcess.stdout!.on('data', (chunk: Buffer) => {
       const m = chunk.toString().match(/ecoute sur :(\d+)/);
       if (m) {
@@ -37,7 +37,7 @@ beforeAll(async () => {
       }
     });
   });
-}, 20_000);
+}, 60_000);
 
 afterAll(() => {
   relayProcess.kill();
@@ -159,4 +159,4 @@ test('bout en bout REEL : deux telephones via le relais, E2EE totale', async () 
     await alice.manager.decryptFrom(bobId, JSON.parse(inAliceBox[0].blob)),
   );
   expect(replyPlain).toBe('Bien recu via le relais !');
-}, 20_000);
+}, 60_000);

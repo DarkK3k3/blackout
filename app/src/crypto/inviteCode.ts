@@ -30,8 +30,25 @@ import { utf8Encode } from '../platform/runtime';
 /** Empreinte tronquee a 128 bits : suffisant contre une seconde preimage. */
 const FINGERPRINT_BYTES = 16;
 
-/** Alphabet base32 sans caracteres ambigus (ni 0/O, ni 1/I/L). */
-const ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+/**
+ * Alphabet base32 de Crockford : EXACTEMENT 32 caracteres, concu pour
+ * etre lu et retape par un humain. Il exclut I, L, O et U.
+ *
+ * Le compte de 32 n'est pas cosmetique. Un base32 decoupe les donnees
+ * en groupes de 5 bits, qui valent de 0 a 31. Avec un alphabet de 31
+ * caracteres, le groupe valant 31 ne correspondait a rien et produisait
+ * `undefined` : environ un code sur deux sortait corrompu, de facon
+ * imprevisible.
+ */
+const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+/**
+ * Corrections de saisie prevues par Crockford : quand quelqu'un
+ * retape un code lu a voix haute, O devient 0, I et L deviennent 1.
+ */
+function normalizeCrockford(text: string): string {
+  return text.toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1');
+}
 
 export interface InviteReference {
   /** Adresse du relais ou recuperer le bundle. */
@@ -95,7 +112,7 @@ export function toSpokenCode(ref: InviteReference): string {
 }
 
 export function fromSpokenCode(code: string, serverUrl: string): InviteReference {
-  const clean = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const clean = normalizeCrockford(code).replace(/[^A-Z0-9]/g, '');
   // L'empreinte occupe les 26 derniers caracteres (128 bits en base32).
   const FP_LEN = Math.ceil((FINGERPRINT_BYTES * 8) / 5);
   if (clean.length <= FP_LEN) throw new Error('code trop court');

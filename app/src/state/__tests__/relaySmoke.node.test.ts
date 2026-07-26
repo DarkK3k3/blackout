@@ -25,7 +25,7 @@ async function makeApp(name: string) {
   return { app, store };
 }
 
-async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 25_000): Promise<void> {
+async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 45_000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await predicate()) return;

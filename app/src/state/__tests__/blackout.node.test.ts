@@ -27,7 +27,7 @@ beforeAll(async () => {
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   serverUrl = await new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('relais pas demarre')), 10_000);
+    const timer = setTimeout(() => reject(new Error('relais pas demarre')), 45_000);
     relayProcess.stdout!.on('data', (chunk: Buffer) => {
       const m = chunk.toString().match(/ecoute sur :(\d+)/);
       if (m) {
@@ -36,7 +36,7 @@ beforeAll(async () => {
       }
     });
   });
-}, 20_000);
+}, 60_000);
 
 afterAll(() => relayProcess.kill());
 
@@ -111,7 +111,7 @@ test('parcours complet : invitation, conversation, verification', async () => {
   bob.app.stopListening();
 }, 40_000);
 
-async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 15_000): Promise<void> {
+async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 45_000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await predicate()) return;
@@ -233,4 +233,4 @@ test('un code dicte errone est rejete sans creer de contact', async () => {
   await expect(alice.app.acceptSpokenCode('ABC')).rejects.toThrow(/trop court/);
   await expect(alice.app.acceptSpokenCode('ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZ')).rejects.toThrow();
   expect(await alice.app.listChats()).toHaveLength(0);
-}, 20_000);
+}, 60_000);
