@@ -307,13 +307,19 @@ function AddContactContainer({ navigation }: any) {
   // de reponse). Sans lui, on le dit clairement plutot que de tourner
   // dans le vide.
   if (inviteError) {
+    // On ne conclut PAS a un probleme de relais pour n'importe quelle
+    // erreur : ce raccourci a deja fait chercher une panne reseau alors
+    // que la cause etait tout autre.
+    const looksLikeNetwork = /network|fetch|timeout|connexion|econn|failed to fetch/i.test(inviteError);
     return (
       <View style={styles.center}>
-        <Text style={styles.errorTitle}>RELAIS INJOIGNABLE</Text>
+        <Text style={styles.errorTitle}>
+          {looksLikeNetwork ? 'RELAIS INJOIGNABLE' : 'INVITATION IMPOSSIBLE'}
+        </Text>
         <Text style={styles.errorBody}>
-          Impossible de creer une invitation : le serveur relais ne repond pas.
-          {'\n\n'}Verifie ta connexion, et que RELAY_URL pointe vers ton serveur
-          (voir relay-server/README.md).
+          {looksLikeNetwork
+            ? "Le serveur relais ne repond pas. Verifie ta connexion, puis l'adresse du relais dans les Reglages (bouton TESTER)."
+            : "Impossible de preparer ton QR d'invitation. Le detail ci-dessous indique la cause."}
         </Text>
         <Text style={styles.errorDetail}>{inviteError}</Text>
       </View>

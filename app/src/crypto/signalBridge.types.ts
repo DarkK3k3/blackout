@@ -43,6 +43,17 @@ export interface PreKeyBundleJson {
   kyberPreKeySignature: string;
 }
 
+/**
+ * Parties PUBLIQUES d'un lot de prekeys. Persistees telles quelles :
+ * ce sont elles qui permettent de fabriquer un QR d'invitation apres
+ * un redemarrage de l'app.
+ */
+export interface PreKeyPublics {
+  signedPreKey: { id: number; publicKey: string; signature: string };
+  preKeys: { id: number; publicKey: string }[];
+  kyberPreKey: { id: number; publicKey: string; signature: string };
+}
+
 /** Records generes localement. `record` contient du prive -> SQLCipher only. */
 export interface GeneratedPreKeys {
   signedPreKey: { id: number; record: string; publicKey: string; signature: string };
@@ -126,7 +137,7 @@ export function makePreKeyBundle(
   identityPublicKey: string,
   registrationId: number,
   deviceId: number,
-  generated: GeneratedPreKeys,
+  generated: PreKeyPublics,
   oneTimePreKeyIndex: number | null,
 ): PreKeyBundleJson {
   const oneTime = oneTimePreKeyIndex === null ? undefined : generated.preKeys[oneTimePreKeyIndex];

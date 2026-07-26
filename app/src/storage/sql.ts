@@ -110,6 +110,15 @@ const MIGRATIONS: string[] = [
     value TEXT NOT NULL
   );
   `,
+  // v4 — distinguer « distribuee » de « consommee ».
+  //
+  // Une prekey a usage unique est REERVEE des qu'elle part dans un QR,
+  // pour que l'invitation suivante en prenne une autre. Elle n'est
+  // CONSOMMEE (used) qu'a la reception du premier message : jusque-la
+  // son record doit rester disponible pour dechiffrer.
+  `
+  ALTER TABLE one_time_prekeys ADD COLUMN reserved INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 /** Applique les migrations manquantes (user_version de SQLite). */

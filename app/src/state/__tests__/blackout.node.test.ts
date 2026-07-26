@@ -146,3 +146,33 @@ test('testRelay valide une adresse et rejette ce qui n en est pas une', async ()
   await expect(Blackout.testRelay(serverUrl)).resolves.toBeUndefined();
   await expect(Blackout.testRelay(serverUrl + '/v1')).rejects.toThrow();
 });
+
+test('une invitation reste possible APRES redemarrage de l app', async () => {
+  // Regression : les parties publiques des prekeys n'etaient gardees
+  // qu'en memoire vive. Au premier lancement tout marchait ; apres
+  // redemarrage, creer un contact devenait impossible — et l'ecran
+  // annoncait a tort « relais injoignable ».
+  const store = await BlackoutStore.open(createNodeSqlExecutor());
+
+  const premiereOuverture = new Blackout(store, nodeSignalBridge, serverUrl, 'Kevin');
+  await premiereOuverture.init();
+  const invite1 = await premiereOuverture.createInviteQr();
+  expect(JSON.parse(invite1.encoded).bundle.signedPreKeyPublic).toBeTruthy();
+
+  // Nouvelle instance sur la MEME base = l'app relancee
+  const apresRedemarrage = new Blackout(store, nodeSignalBridge, serverUrl, 'Kevin');
+  await apresRedemarrage.init();
+  const invite2 = await apresRedemarrage.createInviteQr();
+
+  expect(invite2.payload.bundle.signedPreKeyPublic).toBeTruthy();
+  expect(invite2.payload.bundle.kyberPreKeyPublic).toBeTruthy();
+  // Meme identite : les conversations en cours ne sont pas cassees
+  expect(invite2.payload.identityKey).toBe(invite1.payload.identityKey);
+  // ... mais une one-time prekey differente a chaque invitation
+  expect(invite2.payload.bundle.preKeyId).not.toBe(invite1.payload.bundle.preKeyId);
+
+  // Et l'invitation d'apres redemarrage reste utilisable de bout en bout
+  const autre = await makeApp('Autre');
+  const contactId = await autre.app.acceptInviteQr(invite2.encoded);
+  expect(contactId).toBe(invite2.payload.address);
+}, 30_000);

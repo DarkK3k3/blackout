@@ -12,7 +12,7 @@
 // code de verification mensuel ensuite), jamais du relais.
 // ------------------------------------------------------------------
 
-import type { SignalBridge, PreKeyBundleJson } from './signalBridge.types';
+import type { SignalBridge, PreKeyBundleJson, PreKeyPublics } from './signalBridge.types';
 import { CIPHERTEXT_PREKEY, makePreKeyBundle } from './signalBridge.types';
 import type { BlackoutStore, IdentityRow } from '../storage/store';
 import { uuidV4, toBase64, fromBase64 } from '../platform/runtime';
@@ -32,10 +32,11 @@ export interface Envelope {
   body: string; // base64
 }
 
-const SIGNED_PREKEY_ID = 1;
-const KYBER_PREKEY_ID = 1;
-const ONE_TIME_START_ID = 100;
 const ONE_TIME_BATCH = 20;
+/** Espacement des identifiants entre deux lots, pour eviter les collisions. */
+const ONE_TIME_ID_STRIDE = 1000;
+const PREKEY_PUBLICS_KEY = 'preKeyPublics';
+const PREKEY_BATCH_KEY = 'preKeyBatch';
 
 // L'aleatoire et les encodages passent par platform/runtime : Hermes ne
 // fournit ni `crypto`, ni `btoa`/`atob`, contrairement a Node.
@@ -64,20 +65,72 @@ export class SessionManager {
     };
     await this.store.saveIdentity(identity);
 
-    const preKeys = await this.bridge.generatePreKeys(
-      identity.identityRecord, SIGNED_PREKEY_ID, ONE_TIME_START_ID, ONE_TIME_BATCH, KYBER_PREKEY_ID,
-    );
-    await this.store.saveSignedPreKey(preKeys.signedPreKey.id, preKeys.signedPreKey.record);
-    await this.store.saveKyberPreKey(preKeys.kyberPreKey.id, preKeys.kyberPreKey.record);
-    await this.store.saveOneTimePreKeys(preKeys.preKeys.map((p) => ({ id: p.id, record: p.record })));
-
-    // On garde les publics sous la main pour construire les invitations
-    this.generatedPublics = preKeys;
+    await this.generatePreKeyBatch(identity, 1);
     return identity;
   }
 
-  /** Cache des publics du lot courant (reconstruit au besoin). */
-  private generatedPublics: Awaited<ReturnType<SignalBridge['generatePreKeys']>> | null = null;
+  /** Cache en memoire du lot courant. Voir ensurePreKeyPublics(). */
+  private generatedPublics: PreKeyPublics | null = null;
+
+  /**
+   * Genere un lot de prekeys, range les records prives en base et
+   * PERSISTE les parties publiques.
+   *
+   * Ces publics sont indispensables pour fabriquer un QR d'invitation.
+   * Ils n'etaient auparavant gardes qu'en memoire vive : au premier
+   * lancement tout marchait, mais apres chaque redemarrage de l'app
+   * l'ajout de contact devenait impossible.
+   */
+  private async generatePreKeyBatch(identity: IdentityRow, batchNumber: number): Promise<PreKeyPublics> {
+    const batch = await this.bridge.generatePreKeys(
+      identity.identityRecord,
+      batchNumber,
+      batchNumber * ONE_TIME_ID_STRIDE,
+      ONE_TIME_BATCH,
+      batchNumber,
+    );
+    await this.store.saveSignedPreKey(batch.signedPreKey.id, batch.signedPreKey.record);
+    await this.store.saveKyberPreKey(batch.kyberPreKey.id, batch.kyberPreKey.record);
+    await this.store.saveOneTimePreKeys(batch.preKeys.map((p) => ({ id: p.id, record: p.record })));
+
+    // On ne persiste QUE le public : les parties privees vivent deja
+    // dans leurs tables dediees.
+    const publics: PreKeyPublics = {
+      signedPreKey: {
+        id: batch.signedPreKey.id,
+        publicKey: batch.signedPreKey.publicKey,
+        signature: batch.signedPreKey.signature,
+      },
+      preKeys: batch.preKeys.map((p) => ({ id: p.id, publicKey: p.publicKey })),
+      kyberPreKey: {
+        id: batch.kyberPreKey.id,
+        publicKey: batch.kyberPreKey.publicKey,
+        signature: batch.kyberPreKey.signature,
+      },
+    };
+    await this.store.setSetting(PREKEY_PUBLICS_KEY, JSON.stringify(publics));
+    await this.store.setSetting(PREKEY_BATCH_KEY, String(batchNumber));
+    this.generatedPublics = publics;
+    return publics;
+  }
+
+  /**
+   * Retrouve les publics du lot courant : memoire vive, sinon base,
+   * sinon nouveau lot. Un nouveau lot ne change PAS l'identite : les
+   * conversations en cours ne sont pas affectees.
+   */
+  private async ensurePreKeyPublics(identity: IdentityRow): Promise<PreKeyPublics> {
+    if (this.generatedPublics) return this.generatedPublics;
+
+    const stored = await this.store.getSetting(PREKEY_PUBLICS_KEY);
+    if (stored) {
+      this.generatedPublics = JSON.parse(stored) as PreKeyPublics;
+      return this.generatedPublics;
+    }
+
+    const previous = Number((await this.store.getSetting(PREKEY_BATCH_KEY)) ?? '0');
+    return this.generatePreKeyBatch(identity, previous + 1);
+  }
 
   /**
    * Construit le contenu d'un QR d'invitation. Consomme une one-time
@@ -85,19 +138,23 @@ export class SessionManager {
    */
   async createInvite(displayName: string): Promise<InvitePayload> {
     const identity = await this.ensureIdentity();
-    if (!this.generatedPublics) {
-      throw new Error('publics de prekeys indisponibles — regenerer un lot (rotation a venir)');
+    let publics = await this.ensurePreKeyPublics(identity);
+
+    let oneTime = await this.store.takeOneTimePreKeyForInvite();
+    if (!oneTime) {
+      // Lot epuise : on en genere un nouveau plutot que de rediffuser
+      // une prekey deja distribuee.
+      const previous = Number((await this.store.getSetting(PREKEY_BATCH_KEY)) ?? '0');
+      publics = await this.generatePreKeyBatch(identity, previous + 1);
+      oneTime = await this.store.takeOneTimePreKeyForInvite();
     }
-    const oneTime = await this.store.takeOneTimePreKeyForInvite();
-    const index = oneTime
-      ? this.generatedPublics.preKeys.findIndex((p) => p.id === oneTime.id)
-      : null;
+    const index = oneTime ? publics.preKeys.findIndex((p) => p.id === oneTime.id) : null;
 
     const bundle = makePreKeyBundle(
       identity.publicKey,
       identity.registrationId,
       1,
-      this.generatedPublics,
+      publics,
       index === -1 ? null : index,
     );
     return {

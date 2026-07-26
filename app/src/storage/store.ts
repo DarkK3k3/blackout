@@ -95,11 +95,21 @@ export class BlackoutStore {
     };
   }
 
-  /** Reserve la prochaine one-time prekey pour un QR d'invitation (une par invitation). */
+  /**
+   * Reserve la prochaine one-time prekey pour un QR d'invitation.
+   * La marque aussitot reservee, sinon toutes les invitations
+   * distribueraient la MEME prekey — ce qui contredirait la promesse
+   * « usage unique » et affaiblirait la confidentialite persistante du
+   * tout premier message.
+   */
   async takeOneTimePreKeyForInvite(): Promise<{ id: number; record: string } | null> {
-    const { rows } = await this.db.execute('SELECT id, record FROM one_time_prekeys WHERE used = 0 ORDER BY id LIMIT 1');
+    const { rows } = await this.db.execute(
+      'SELECT id, record FROM one_time_prekeys WHERE used = 0 AND reserved = 0 ORDER BY id LIMIT 1',
+    );
     if (!rows[0]) return null;
-    return { id: Number(rows[0].id), record: String(rows[0].record) };
+    const id = Number(rows[0].id);
+    await this.db.execute('UPDATE one_time_prekeys SET reserved = 1 WHERE id = ?', [id]);
+    return { id, record: String(rows[0].record) };
   }
 
   async markOneTimePreKeyUsed(id: number): Promise<void> {
