@@ -1,7 +1,67 @@
 # Installer Blackout sur iPhone
 
-Deux chemins possibles. **TestFlight est le plus simple** ; AltStore PAL est
-documenté plus bas comme solution de repli, mais il n'est pas plus facile.
+**Trois chemins.** Le chemin gratuit (chemin 0) fonctionne et ne coûte rien,
+mais impose de réinstaller tous les 7 jours. TestFlight (chemin A) coûte
+99 €/an et supprime cette contrainte pour toi comme pour tes amis.
+
+---
+
+## Chemin 0 — gratuit, sans compte développeur (validé)
+
+Principe : GitHub compile l'app sur un Mac prêté gratuitement, sans la
+signer ; **Sideloadly** la signe ensuite sur ton PC avec ton Apple ID
+habituel.
+
+### 1. Compiler
+
+Sur https://github.com/DarkK3k3/blackout → onglet **Actions** →
+**IPA iOS (non signé)** → **Run workflow**. Renseigne l'URL de ton serveur
+relais, puis lance. Compter ~12 minutes.
+
+Le workflow lance les 45 tests avant de compiler et **refuse de produire un
+fichier si le résultat est suspect** (bundle trop petit, binaire absent) —
+c'est ce qui évite de se retrouver avec un IPA vide en croyant que tout va
+bien.
+
+Quand c'est fini, télécharge l'artefact `Blackout-unsigned-ipa` en bas de la
+page du run, et décompresse-le pour obtenir `Blackout-unsigned.ipa`.
+
+### 2. Installer avec Sideloadly
+
+1. Télécharge Sideloadly sur https://sideloadly.io (Windows).
+2. Branche l'iPhone en USB, déverrouille-le, accepte « Faire confiance ».
+3. Glisse le `.ipa` dans Sideloadly, saisis ton **Apple ID habituel**
+   (gratuit — pas besoin de compte payant), lance.
+4. Sur l'iPhone : Réglages → Général → **VPN et gestion de l'appareil** →
+   ton Apple ID → **Faire confiance**.
+
+### 3. Ce que coûte la gratuité
+
+- **7 jours** : le certificat expire. Il faut relancer Sideloadly avant.
+  Re-signer à temps ne fait rien perdre ; **laisser expirer force une
+  réinstallation qui peut effacer les données de l'app — donc tes clés
+  d'identité, donc l'obligation de refaire les QR avec tout le monde.**
+- **3 apps** sideloadées maximum par Apple ID.
+- Pas de notifications push.
+- Chaque personne qui veut l'app doit refaire cette manip **sur son propre
+  PC**, tous les 7 jours. C'est jouable pour toi, très peu réaliste pour un
+  groupe d'amis — d'où TestFlight ci-dessous.
+
+### Notes techniques (si ça casse un jour)
+
+- Le workflow choisit le **Xcode le plus récent** installé sur le runner :
+  `expo-modules-jsi` déclare un paquet Swift en `swift-tools-version 6.2`,
+  qu'un Xcode plus ancien ne sait pas lire (erreur « Could not resolve
+  package dependencies »). Version validée : Xcode 26.6 / Swift 6.3.3.
+- La variable `LIBSIGNAL_FFI_PREBUILD_CHECKSUM` doit correspondre à la
+  version de libsignal épinglée dans `plugins/withLibsignalPod.js`.
+
+---
+
+## Chemins payants (99 €/an)
+
+**TestFlight est le plus simple** ; AltStore PAL est documenté plus bas
+comme solution de repli, mais il n'est pas plus facile.
 
 Dans les deux cas il faut un **compte Apple Developer Program à 99 $/an**.
 Il n'y a pas d'échappatoire : Apple exige un certificat de développeur pour
@@ -13,7 +73,7 @@ Tu n'as **pas** besoin de Mac : EAS compile dans le cloud.
 
 ---
 
-## Chemin A — TestFlight (recommandé)
+### Chemin A — TestFlight (recommandé)
 
 ### Ce que tu dois faire toi-même (Claude ne peut pas : ce sont des actions liées à ton compte Apple)
 
@@ -88,7 +148,7 @@ EAS ; il est là si tu veux un jour te passer du cloud.
 
 ---
 
-## Chemin B — AltStore PAL (marketplace alternatif UE)
+### Chemin B — AltStore PAL (marketplace alternatif UE)
 
 Depuis le Digital Markets Act, l'UE autorise les marketplaces alternatifs sur
 iOS. AltStore PAL en est un.
