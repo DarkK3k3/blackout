@@ -53,7 +53,7 @@ test('parcours complet : invitation, conversation, verification', async () => {
 
   // --- 1. Bob affiche son QR d'invitation
   const invite = await bob.app.createInviteQr();
-  expect(JSON.parse(invite.encoded).v).toBe(1);
+  expect(invite.payload.v).toBe(1);
   expect(invite.payload.bundle.kyberPreKeyPublic).toBeTruthy(); // PQXDH present
 
   // --- 2. Alice scanne : contact + session + hello envoye
@@ -111,12 +111,6 @@ test('parcours complet : invitation, conversation, verification', async () => {
   bob.app.stopListening();
 }, 40_000);
 
-test('un QR invalide est rejete proprement', async () => {
-  const alice = await makeApp('Alice');
-  await expect(alice.app.acceptInviteQr('pas du json')).rejects.toThrow('illisible');
-  await expect(alice.app.acceptInviteQr('{"v":99}')).rejects.toThrow('invitation Blackout');
-});
-
 async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 15_000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -157,7 +151,7 @@ test('une invitation reste possible APRES redemarrage de l app', async () => {
   const premiereOuverture = new Blackout(store, nodeSignalBridge, serverUrl, 'Kevin');
   await premiereOuverture.init();
   const invite1 = await premiereOuverture.createInviteQr();
-  expect(JSON.parse(invite1.encoded).bundle.signedPreKeyPublic).toBeTruthy();
+  expect(invite1.payload.bundle.signedPreKeyPublic).toBeTruthy();
 
   // Nouvelle instance sur la MEME base = l'app relancee
   const apresRedemarrage = new Blackout(store, nodeSignalBridge, serverUrl, 'Kevin');
@@ -176,3 +170,46 @@ test('une invitation reste possible APRES redemarrage de l app', async () => {
   const contactId = await autre.app.acceptInviteQr(invite2.encoded);
   expect(contactId).toBe(invite2.payload.address);
 }, 30_000);
+
+describe('invitation par reference (le bundle ne tient pas dans un QR)', () => {
+  it('produit un QR court et un code lisible, et fonctionne de bout en bout', async () => {
+    const bob = await makeApp('Bob');
+    const alice = await makeApp('Alice');
+
+    const invite = await bob.app.createInviteQr();
+
+    // Le QR doit tenir tres largement sous la limite de 2953 octets
+    expect(invite.encoded.length).toBeLessThan(300);
+    expect(invite.encoded.startsWith('blackout:1:')).toBe(true);
+    // Le code lisible doit rester dictable a voix haute
+    expect(invite.spokenCode.length).toBeLessThan(80);
+    expect(invite.spokenCode).toMatch(/^[A-Z0-9-]+$/);
+
+    // ... et l'invitation reste pleinement fonctionnelle
+    const bobId = await alice.app.acceptInviteQr(invite.encoded);
+    expect(bobId).toBe(invite.payload.address);
+    expect((await alice.app.listChats())).toHaveLength(1);
+  }, 30_000);
+
+  it('REFUSE un bundle substitue par le relais', async () => {
+    const bob = await makeApp('Bob');
+    const alice = await makeApp('Alice');
+    const eve = await makeApp('Eve');
+
+    const vraie = await bob.app.createInviteQr();
+    // Eve depose SON bundle sur le relais et le fait passer pour celui
+    // de Bob, en gardant l'empreinte annoncee par le QR de Bob.
+    const fausse = await eve.app.createInviteQr();
+    const qrPiege = vraie.encoded.replace(vraie.reference.inviteId, fausse.reference.inviteId);
+
+    await expect(alice.app.acceptInviteQr(qrPiege)).rejects.toThrow(/empreinte invalide/);
+    // Aucun contact n'a ete cree : l'attaque echoue proprement
+    expect(await alice.app.listChats()).toHaveLength(0);
+  }, 30_000);
+
+  it('rejette un QR qui n est pas une invitation', async () => {
+    const alice = await makeApp('Alice');
+    await expect(alice.app.acceptInviteQr('https://exemple.fr')).rejects.toThrow(/invitation Blackout/);
+    await expect(alice.app.acceptInviteQr('blackout:1:incomplet')).rejects.toThrow(/illisible/);
+  });
+});

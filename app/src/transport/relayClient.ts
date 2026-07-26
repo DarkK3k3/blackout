@@ -56,6 +56,29 @@ export class RelayClient {
     return messages.map((m: { id: string; blob: string; postedAt: number }) => ({ queueId, ...m }));
   }
 
+  /**
+   * Depose le contenu PUBLIC d'une invitation (trop volumineux pour un
+   * QR code) et retourne sa reference. Le scanneur verifiera l'empreinte :
+   * le relais ne peut donc pas substituer un autre bundle.
+   */
+  async putInvite(blob: string): Promise<string> {
+    const res = await fetch(`${this.serverUrl}/v1/invites`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ blob }),
+    });
+    if (res.status !== 201) throw new Error(`putInvite: HTTP ${res.status}`);
+    return (await res.json()).inviteId;
+  }
+
+  /** Recupere une invitation deposee. Le contenu DOIT etre verifie ensuite. */
+  static async getInvite(serverUrl: string, inviteId: string): Promise<string> {
+    const res = await fetch(`${serverUrl}/v1/invites/${inviteId}`);
+    if (res.status === 404) throw new Error('invitation introuvable ou expiree');
+    if (!res.ok) throw new Error(`getInvite: HTTP ${res.status}`);
+    return (await res.json()).blob;
+  }
+
   /** Ack : suppression definitive cote serveur apres persistance locale. */
   async ack(queueId: string, readToken: string, messageId: string): Promise<void> {
     const res = await fetch(`${this.serverUrl}/v1/queues/${queueId}/messages/${messageId}`, {

@@ -289,14 +289,19 @@ function VerificationContainer({ navigation, route }: any) {
 
 function AddContactContainer({ navigation }: any) {
   const app = useBlackout();
-  const [invite, setInvite] = React.useState<{ encoded: string; fingerprint: string } | null>(null);
+  const [invite, setInvite] = React.useState<{
+    encoded: string;
+    spokenCode: string;
+    fingerprint: string;
+  } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [inviteError, setInviteError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    void app.createInviteQr().then(({ encoded, payload }) =>
+    void app.createInviteQr().then(({ encoded, spokenCode, payload }) =>
       setInvite({
         encoded,
+        spokenCode,
         // empreinte courte de MON identite, pour un controle visuel rapide
         fingerprint: (payload.identityKey.replace(/[^A-Za-z0-9]/g, '').slice(0, 16).match(/.{1,4}/g) ?? []).join(' '),
       }),
@@ -337,6 +342,7 @@ function AddContactContainer({ navigation }: any) {
   return (
     <AddContactScreen
       invitePayload={invite.encoded}
+      spokenCode={invite.spokenCode}
       myShortFingerprint={invite.fingerprint}
       Scanner={LazyQrScanner}
       error={error}

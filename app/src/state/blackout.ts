@@ -9,6 +9,13 @@ import type { BlackoutStore } from '../storage/store';
 import { SessionManager, type InvitePayload, type Envelope } from '../crypto/sessionManager';
 import type { SignalBridge } from '../crypto/signalBridge.types';
 import { RelayClient } from '../transport/relayClient';
+import {
+  encodeInviteQr,
+  decodeInviteQr,
+  inviteFingerprint,
+  toSpokenCode,
+  type InviteReference,
+} from '../crypto/inviteCode';
 import { pairFingerprint, monthlyVerificationCode, currentYearMonth } from '../crypto/verification';
 import type { ChatSummary } from '../ui/screens/ChatListScreen';
 import type { ChatMessage } from '../ui/screens/ConversationScreen';
@@ -92,8 +99,20 @@ export class Blackout {
 
   // ------------------------------------------------------------ contacts
 
-  /** Genere le QR d'invitation : bundle X3DH + une boite de reponse dediee. */
-  async createInviteQr(): Promise<{ payload: InviteQr; encoded: string }> {
+  /**
+   * Prepare une invitation.
+   *
+   * Le bundle (~3 Ko a cause de la cle post-quantique) ne tient PAS
+   * dans un QR code : il est depose sur le relais, et le QR ne porte
+   * qu'une reference + l'empreinte du contenu. Le scanneur verifiera
+   * cette empreinte, donc le relais ne peut rien substituer.
+   */
+  async createInviteQr(): Promise<{
+    payload: InviteQr;
+    encoded: string;
+    spokenCode: string;
+    reference: InviteReference;
+  }> {
     const invite = await this.sessions.createInvite(this.myDisplayName);
     const inbox = await this.relay.createQueue();
     const payload: InviteQr = {
@@ -103,18 +122,45 @@ export class Blackout {
     // La boite est enregistree sans contact : elle sera rattachee au
     // premier expediteur qui s'en sert (une boite = un correspondant).
     await this.store.savePendingInbox(inbox.queueId, inbox.readToken, this.serverUrl);
-    return { payload, encoded: JSON.stringify(payload) };
+
+    const json = JSON.stringify(payload);
+    const inviteId = await this.relay.putInvite(json);
+    const reference: InviteReference = {
+      serverUrl: this.serverUrl,
+      inviteId,
+      fingerprint: inviteFingerprint(json),
+    };
+    return {
+      payload,
+      encoded: encodeInviteQr(reference),
+      spokenCode: toSpokenCode(reference),
+      reference,
+    };
   }
 
-  /** Cote scanneur : cree le contact, la session, et repond par un hello. */
+  /**
+   * Cote scanneur : recupere le bundle, VERIFIE son empreinte, puis
+   * cree le contact, la session, et repond par un hello.
+   */
   async acceptInviteQr(encoded: string): Promise<string> {
+    const reference = decodeInviteQr(encoded);
+    const json = await RelayClient.getInvite(reference.serverUrl, reference.inviteId);
+
+    // Verification anti-substitution : sans elle, un relais malveillant
+    // pourrait glisser SON bundle et lire toute la conversation.
+    if (inviteFingerprint(json) !== reference.fingerprint) {
+      throw new Error(
+        "empreinte invalide : le contenu recu ne correspond pas au QR scanne. Ne poursuis pas.",
+      );
+    }
+
     let invite: InviteQr;
     try {
-      invite = JSON.parse(encoded);
+      invite = JSON.parse(json);
     } catch {
-      throw new Error('QR code illisible');
+      throw new Error('invitation illisible');
     }
-    if (invite.v !== 1 || !invite.bundle || !invite.inbox) throw new Error("Ce QR n'est pas une invitation Blackout");
+    if (invite.v !== 1 || !invite.bundle || !invite.inbox) throw new Error("Ce n'est pas une invitation Blackout");
 
     const contactId = await this.sessions.addContactFromInvite(invite);
     const myInbox = await this.relay.createQueue();

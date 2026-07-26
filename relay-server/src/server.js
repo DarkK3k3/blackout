@@ -22,13 +22,14 @@
 
 import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { QueueStore } from './store.js';
+import { QueueStore, InviteStore } from './store.js';
 
 const MAX_BLOB_BYTES = 8 * 1024 * 1024; // photos chiffrees incluses
 const MAX_BODY_BYTES = Math.ceil(MAX_BLOB_BYTES * 1.4); // marge base64+JSON
 
 export function createRelayServer(opts = {}) {
   const store = opts.store ?? new QueueStore(opts);
+  const invites = opts.invites ?? new InviteStore(opts);
 
   /** Abonnes WS par queueId (plusieurs appareils possibles a terme). */
   const subscribers = new Map(); // queueId -> Set<WebSocket>
@@ -100,6 +101,30 @@ export function createRelayServer(opts = {}) {
 
     if (req.method === 'GET' && url.pathname === '/healthz') {
       return sendJson(res, 200, { ok: true });
+    }
+
+    // --- invitations : contenu PUBLIC, verifie par empreinte cote client ---
+    if (parts[0] === 'v1' && parts[1] === 'invites') {
+      if (req.method === 'POST' && parts.length === 2) {
+        const body = await readBody(req, MAX_BODY_BYTES);
+        if (body === null) return sendJson(res, 413, { error: 'too_large' });
+        let blob;
+        try {
+          blob = JSON.parse(body).blob;
+        } catch {
+          return sendJson(res, 400, { error: 'bad_json' });
+        }
+        const r = invites.put(blob);
+        if (r.status === 'too_large') return sendJson(res, 413, { error: 'too_large' });
+        if (r.status !== 'ok') return sendJson(res, 400, { error: 'bad_request' });
+        return sendJson(res, 201, { inviteId: r.inviteId });
+      }
+      if (req.method === 'GET' && parts.length === 3) {
+        const r = invites.get(parts[2]);
+        if (r.status !== 'ok') return sendJson(res, 404, { error: 'not_found' });
+        return sendJson(res, 200, { blob: r.blob });
+      }
+      return sendJson(res, 404, { error: 'not_found' });
     }
 
     if (parts[0] !== 'v1' || parts[1] !== 'queues') {

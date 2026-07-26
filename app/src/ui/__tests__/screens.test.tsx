@@ -212,7 +212,7 @@ describe('AddContactScreen', () => {
     act(() => {
       tree = renderer.create(
         <AddContactScreen
-          invitePayload='{"v":1}'
+          invitePayload="blackout:1:https://x|abc|DEF" spokenCode="ABC-DEF"
           myShortFingerprint="AB12 CD34"
           Scanner={Scanner}
           onScanned={() => {}}
@@ -233,7 +233,7 @@ describe('AddContactScreen', () => {
     act(() => {
       tree = renderer.create(
         <AddContactScreen
-          invitePayload='{"v":1}'
+          invitePayload="blackout:1:https://x|abc|DEF" spokenCode="ABC-DEF"
           myShortFingerprint="AB12"
           Scanner={Scanner}
           onScanned={onScanned}

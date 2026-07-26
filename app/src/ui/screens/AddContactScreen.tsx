@@ -18,8 +18,10 @@ import { StatusBadge, IconScan, LogoMark } from '../components/Primitives';
 import { colors, space, type } from '../theme/tokens';
 
 export interface AddContactScreenProps {
-  /** Charge utile du QR d'invitation (JSON compact deja serialise). */
+  /** Contenu du QR : reference courte + empreinte, PAS les cles. */
   invitePayload: string;
+  /** Meme information, dictable a voix haute quand le scan est impossible. */
+  spokenCode: string;
   /** Empreinte courte de mon identite, affichee sous le QR. */
   myShortFingerprint: string;
   /** Rendu de la camera : injecte pour rester testable et econome. */
@@ -32,6 +34,7 @@ type Tab = 'mine' | 'scan';
 
 export function AddContactScreen({
   invitePayload,
+  spokenCode,
   myShortFingerprint,
   Scanner,
   onScanned,
@@ -78,11 +81,19 @@ export function AddContactScreen({
               <StatusBadge label="usage unique" color={colors.ember} />
             </View>
           </CutFrame>
+
+          <Text style={styles.orLabel}>OU DICTE CE CODE</Text>
+          <CutFrame accent={colors.line} corners={['tl']} style={styles.spokenPanel}>
+            <Text style={styles.spokenCode} selectable>
+              {spokenCode}
+            </Text>
+          </CutFrame>
+
           <Text style={styles.help}>
-            Ce code contient ta cle publique et de quoi t'ecrire un premier
-            message chiffre, meme si tu es hors ligne. Il ne contient aucun
-            numero, aucun email, aucun identifiant de compte — et il est a
-            usage unique : reaffiche-le pour chaque nouvelle personne.
+            Ce code ne contient aucune cle : juste ou les recuperer, et une
+            empreinte qui garantit qu'elles n'ont pas ete remplacees en route.
+            Aucun numero, aucun email, aucun identifiant de compte — et il est
+            a usage unique : reaffiche-le pour chaque nouvelle personne.
           </Text>
         </ScrollView>
       ) : (
@@ -117,6 +128,9 @@ const styles = StyleSheet.create({
   qrPanel: { alignItems: 'center', gap: space.md, padding: space.lg },
   qrBox: { backgroundColor: colors.text, padding: space.sm },
   fingerprint: { ...type.dataSmall, color: colors.cyan },
+  orLabel: { ...type.label, color: colors.textDim, marginTop: space.sm },
+  spokenPanel: { alignSelf: 'stretch' },
+  spokenCode: { ...type.data, color: colors.cyan, textAlign: 'center', padding: space.md, lineHeight: 22 },
   help: { ...type.body, color: colors.textDim, textAlign: 'center' },
   scanArea: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scanPlaceholder: { alignItems: 'center', gap: space.md, padding: space.xl },

@@ -36,6 +36,54 @@ function tokenMatches(candidate, storedHashHex) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/**
+ * Depot d'invitations.
+ *
+ * Le bundle de prekeys (dont la cle post-quantique Kyber) pese ~3 Ko :
+ * trop pour tenir dans un QR code, qui plafonne a 2953 octets. On le
+ * depose donc ici, et le QR ne transporte qu'une reference courte
+ * accompagnee de l'EMPREINTE du contenu.
+ *
+ * Le relais ne devient PAS une autorite de confiance pour autant : le
+ * scanneur verifie que ce qu'il telecharge correspond a l'empreinte
+ * lue sur le QR. Un relais malveillant qui substituerait un bundle
+ * serait detecte immediatement.
+ *
+ * Le contenu est public (cles publiques et signatures) : pas d'auth en
+ * lecture. Duree de vie courte, taille bornee.
+ */
+export class InviteStore {
+  constructor(opts = {}) {
+    this.ttlMs = opts.inviteTtlMs ?? 7 * 24 * 60 * 60 * 1000; // 7 jours
+    this.maxBytes = opts.maxInviteBytes ?? 16 * 1024;
+    /** @type {Map<string, {blob: string, createdAt: number}>} */
+    this.invites = new Map();
+  }
+
+  put(blob) {
+    if (typeof blob !== 'string' || blob.length === 0) return { status: 'bad_request' };
+    if (Buffer.byteLength(blob, 'utf8') > this.maxBytes) return { status: 'too_large' };
+    this._purgeExpired();
+    const inviteId = randomBytes(12).toString('base64url');
+    this.invites.set(inviteId, { blob, createdAt: Date.now() });
+    return { status: 'ok', inviteId };
+  }
+
+  get(inviteId) {
+    this._purgeExpired();
+    const entry = this.invites.get(inviteId);
+    if (!entry) return { status: 'not_found' };
+    return { status: 'ok', blob: entry.blob };
+  }
+
+  _purgeExpired() {
+    const cutoff = Date.now() - this.ttlMs;
+    for (const [id, entry] of this.invites) {
+      if (entry.createdAt < cutoff) this.invites.delete(id);
+    }
+  }
+}
+
 export class QueueStore {
   /**
    * @param {{ dataFile?: string|null, messageTtlMs?: number, maxMessagesPerQueue?: number }} [opts]
