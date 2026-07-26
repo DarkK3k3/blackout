@@ -1,0 +1,96 @@
+# Compile un IPA NON SIGNE sur un Mac fourni gratuitement par GitHub.
+#
+# Pourquoi : Apple exige un Mac pour compiler une app iOS, et un compte
+# developpeur payant pour la signer. Ici on compile sans signer ; c'est
+# Sideloadly (ou AltStore) qui signera ensuite sur ton PC avec ton
+# Apple ID gratuit. Voir docs/SETUP-IOS.md.
+#
+# Lancement : onglet "Actions" du depot -> "IPA iOS (non signe)" ->
+# "Run workflow". L'IPA se telecharge en bas de la page du run.
+
+name: IPA iOS (non signe)
+
+on:
+  workflow_dispatch:
+    inputs:
+      relay_url:
+        description: "URL du serveur relais (ex. https://mon-relais.trycloudflare.com)"
+        required: true
+      display_name:
+        description: "Nom affiche a tes contacts"
+        required: false
+        default: "Kevin"
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    env:
+      # Exige par le podspec officiel de Signal pour telecharger le
+      # binaire libsignal precompile. Doit correspondre a la version
+      # epinglee dans plugins/withLibsignalPod.js (v0.99.1).
+      LIBSIGNAL_FFI_PREBUILD_CHECKSUM: c7b1ad515b0698497f051cb7a65e0d9a6e1e5d707db82aa334fa8c834e3e4fd8
+      EXPO_PUBLIC_RELAY_URL: ${{ inputs.relay_url }}
+      EXPO_PUBLIC_DISPLAY_NAME: ${{ inputs.display_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Installer les dependances
+        working-directory: app
+        run: npm ci
+
+      - name: Verifier que les tests passent
+        working-directory: app
+        run: npm test -- --forceExit
+
+      - name: Generer le projet Xcode
+        working-directory: app
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Installer les pods (dont LibSignalClient)
+        working-directory: app/ios
+        run: pod install
+
+      - name: Compiler SANS signature
+        working-directory: app/ios
+        run: |
+          xcodebuild \
+            -workspace Blackout.xcworkspace \
+            -scheme Blackout \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            EXPANDED_CODE_SIGN_IDENTITY="" \
+            | tail -40
+
+      - name: Empaqueter en .ipa
+        working-directory: app/ios
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/Blackout.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::Blackout.app introuvable — la compilation a echoue"
+            ls -R build/Build/Products || true
+            exit 1
+          fi
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry Blackout-unsigned.ipa Payload
+          echo "IPA produit : $(du -h Blackout-unsigned.ipa | cut -f1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Blackout-unsigned-ipa
+          path: app/ios/Blackout-unsigned.ipa
+          retention-days: 30
