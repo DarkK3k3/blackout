@@ -82,6 +82,22 @@ jobs:
         working-directory: app/ios
         run: pod install
 
+      # Sans cette verification, un correctif non applique passe
+      # inapercu : la compilation reussit dans les deux cas, et l'app
+      # plante seulement sur le telephone.
+      - name: Verifier que SQLCipher utilise bien CommonCrypto
+        working-directory: app/ios
+        run: |
+          set -euo pipefail
+          if grep -q "SQLCIPHER_CRYPTO_CC" Pods/Pods.xcodeproj/project.pbxproj; then
+            echo "OK : SQLCipher compile avec CommonCrypto (pas d'OpenSSL)"
+            echo "SQLCipher : CommonCrypto ✔" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::SQLCIPHER_CRYPTO_CC absent du projet Pods — le plugin n'a pas pris effet, la collision BoringSSL/OpenSSL persiste"
+            grep -c "GCC_PREPROCESSOR_DEFINITIONS" Pods/Pods.xcodeproj/project.pbxproj || true
+            exit 1
+          fi
+
       - name: Verifier que le projet Xcode existe
         working-directory: app
         run: |
