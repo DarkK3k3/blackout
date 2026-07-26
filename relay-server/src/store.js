@@ -52,6 +52,25 @@ function tokenMatches(candidate, storedHashHex) {
  * Le contenu est public (cles publiques et signatures) : pas d'auth en
  * lecture. Duree de vie courte, taille bornee.
  */
+/**
+ * Alphabet des identifiants d'invitation : majuscules et chiffres, sans
+ * les caracteres qu'on confond a l'oral ou a l'ecrit (0/O, 1/I/L).
+ *
+ * Ce choix n'est pas cosmetique : le code d'invitation doit pouvoir
+ * etre DICTE puis retape. Un identifiant en base64 (sensible a la
+ * casse, avec des tirets et underscores) ne survit pas a ce
+ * passage — les caracteres sont perdus a la normalisation.
+ */
+const INVITE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const INVITE_ID_LENGTH = 16; // ~78 bits, largement assez
+
+function randomInviteId() {
+  const bytes = randomBytes(INVITE_ID_LENGTH);
+  let out = '';
+  for (const b of bytes) out += INVITE_ALPHABET[b % INVITE_ALPHABET.length];
+  return out;
+}
+
 export class InviteStore {
   constructor(opts = {}) {
     this.ttlMs = opts.inviteTtlMs ?? 7 * 24 * 60 * 60 * 1000; // 7 jours
@@ -64,7 +83,7 @@ export class InviteStore {
     if (typeof blob !== 'string' || blob.length === 0) return { status: 'bad_request' };
     if (Buffer.byteLength(blob, 'utf8') > this.maxBytes) return { status: 'too_large' };
     this._purgeExpired();
-    const inviteId = randomBytes(12).toString('base64url');
+    const inviteId = randomInviteId();
     this.invites.set(inviteId, { blob, createdAt: Date.now() });
     return { status: 'ok', inviteId };
   }

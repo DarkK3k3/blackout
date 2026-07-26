@@ -14,6 +14,7 @@ import {
   decodeInviteQr,
   inviteFingerprint,
   toSpokenCode,
+  fromSpokenCode,
   type InviteReference,
 } from '../crypto/inviteCode';
 import { pairFingerprint, monthlyVerificationCode, currentYearMonth } from '../crypto/verification';
@@ -143,7 +144,20 @@ export class Blackout {
    * cree le contact, la session, et repond par un hello.
    */
   async acceptInviteQr(encoded: string): Promise<string> {
-    const reference = decodeInviteQr(encoded);
+    return this.acceptInviteReference(decodeInviteQr(encoded));
+  }
+
+  /**
+   * Meme chose a partir du code DICTE. Celui-ci ne contient pas
+   * l'adresse du relais (trop longue a lire a voix haute) : on utilise
+   * celle configuree, donc les deux personnes doivent partager le meme
+   * relais — ce qui est le cas dans un groupe d'amis.
+   */
+  async acceptSpokenCode(code: string): Promise<string> {
+    return this.acceptInviteReference(fromSpokenCode(code, this.serverUrl));
+  }
+
+  private async acceptInviteReference(reference: InviteReference): Promise<string> {
     const json = await RelayClient.getInvite(reference.serverUrl, reference.inviteId);
 
     // Verification anti-substitution : sans elle, un relais malveillant

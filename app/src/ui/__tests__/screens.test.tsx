@@ -215,7 +215,7 @@ describe('AddContactScreen', () => {
           invitePayload="blackout:1:https://x|abc|DEF" spokenCode="ABC-DEF"
           myShortFingerprint="AB12 CD34"
           Scanner={Scanner}
-          onScanned={() => {}}
+          onScanned={() => {}} onSubmitCode={() => {}}
         />,
       );
     });
@@ -236,7 +236,7 @@ describe('AddContactScreen', () => {
           invitePayload="blackout:1:https://x|abc|DEF" spokenCode="ABC-DEF"
           myShortFingerprint="AB12"
           Scanner={Scanner}
-          onScanned={onScanned}
+          onScanned={onScanned} onSubmitCode={() => {}}
         />,
       );
     });

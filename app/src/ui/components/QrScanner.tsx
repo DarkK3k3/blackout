@@ -1,71 +1,66 @@
-// QrScanner — camera + decodage QR (react-native-vision-camera v5).
+// QrScanner — camera + lecture de QR code.
 //
-// Isole dans son propre fichier : importe uniquement par l'ecran
-// d'ajout de contact, et monte seulement quand l'onglet SCANNER est
-// actif, pour que la camera ne tourne jamais inutilement.
+// POURQUOI expo-camera ET PLUS vision-camera
+// ------------------------------------------
+// react-native-vision-camera v5 repose sur Nitro, une architecture
+// native tres recente. Dans ce projet, elle a coute cher : son import
+// au demarrage etait suspect dans un crash, son plugin de config est
+// absent du paquet, son API a entierement change entre v4 et v5, et au
+// final la camera ne s'activait pas sur l'appareil malgre
+// l'autorisation accordee.
 //
-// API v5 (Nitro) : la detection de codes passe par un "object output"
-// declare sur la camera (useObjectOutput), plus par un codeScanner.
+// expo-camera est maintenu par Expo, integre au meme ecosysteme que le
+// reste du projet, et sait lire les QR codes nativement. Moins
+// d'options avancees — dont on n'a aucun usage ici : on lit un QR, un
+// point c'est tout.
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import {
-  Camera,
-  useCameraDevice,
-  useCameraPermission,
-  useObjectOutput,
-  usePreviewOutput,
-  isScannedCode,
-} from 'react-native-vision-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { ActionButton } from './Primitives';
 import { colors, space, type } from '../theme/tokens';
 
 export function QrScanner({ onScanned }: { onScanned: (value: string) => void }) {
-  const device = useCameraDevice('back');
-  const { hasPermission, requestPermission, canRequestPermission } = useCameraPermission();
+  const [permission, requestPermission] = useCameraPermissions();
   const handled = React.useRef(false);
 
-  React.useEffect(() => {
-    if (!hasPermission && canRequestPermission) void requestPermission();
-  }, [hasPermission, canRequestPermission, requestPermission]);
-
-  const previewOutput = usePreviewOutput();
-  const objectOutput = useObjectOutput({
-    types: ['qr'],
-    onObjectsScanned: (objects) => {
-      // Un seul scan traite : evite de rejouer l'ajout de contact
-      // pendant que la camera continue de filmer le meme QR.
-      if (handled.current) return;
-      for (const object of objects) {
-        if (isScannedCode(object) && object.value) {
-          handled.current = true;
-          onScanned(object.value);
-          return;
-        }
-      }
-    },
-  });
-
-  const outputs = React.useMemo(() => [previewOutput, objectOutput], [previewOutput, objectOutput]);
-
-  if (!hasPermission) {
-    return (
-      <View style={styles.fallback}>
-        <Text style={styles.text}>Autorise l'acces a la camera pour scanner un QR code.</Text>
-      </View>
-    );
+  if (!permission) {
+    // L'etat de l'autorisation n'est pas encore connu.
+    return <View style={styles.fallback} />;
   }
-  if (!device) {
+
+  if (!permission.granted) {
     return (
       <View style={styles.fallback}>
-        <Text style={styles.text}>Aucune camera disponible sur cet appareil.</Text>
+        <Text style={styles.text}>
+          {permission.canAskAgain
+            ? "Blackout a besoin de la camera pour lire le QR code d'invitation."
+            : "L'acces a la camera a ete refuse. Autorise-le dans Reglages > Blackout, ou saisis le code a la main dans l'onglet SAISIR."}
+        </Text>
+        {permission.canAskAgain ? (
+          <ActionButton label="Autoriser la camera" onPress={() => void requestPermission()} />
+        ) : null}
       </View>
     );
   }
 
-  return <Camera style={StyleSheet.absoluteFill} device={device} isActive outputs={outputs} />;
+  return (
+    <CameraView
+      style={StyleSheet.absoluteFill}
+      facing="back"
+      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+      onBarcodeScanned={({ data }) => {
+        // Un seul scan traite : la camera continue de filmer, on ne
+        // veut pas rejouer l'ajout de contact en boucle.
+        if (handled.current || !data) return;
+        handled.current = true;
+        onScanned(data);
+      }}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
-  fallback: { alignItems: 'center', padding: space.xl },
+  fallback: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.lg, padding: space.xl },
   text: { ...type.body, color: colors.textDim, textAlign: 'center' },
 });

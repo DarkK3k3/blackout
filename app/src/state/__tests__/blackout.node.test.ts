@@ -213,3 +213,24 @@ describe('invitation par reference (le bundle ne tient pas dans un QR)', () => {
     await expect(alice.app.acceptInviteQr('blackout:1:incomplet')).rejects.toThrow(/illisible/);
   });
 });
+
+test('le code dicte permet d ajouter un contact sans camera', async () => {
+  const bob = await makeApp('Bob');
+  const alice = await makeApp('Alice');
+
+  const invite = await bob.app.createInviteQr();
+
+  // On simule une saisie humaine : minuscules, espaces, tirets oublies
+  const saisi = invite.spokenCode.toLowerCase().replace(/-/g, ' ');
+  const bobId = await alice.app.acceptSpokenCode(saisi);
+
+  expect(bobId).toBe(invite.payload.address);
+  expect(await alice.app.listChats()).toHaveLength(1);
+}, 30_000);
+
+test('un code dicte errone est rejete sans creer de contact', async () => {
+  const alice = await makeApp('Alice');
+  await expect(alice.app.acceptSpokenCode('ABC')).rejects.toThrow(/trop court/);
+  await expect(alice.app.acceptSpokenCode('ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZ')).rejects.toThrow();
+  expect(await alice.app.listChats()).toHaveLength(0);
+}, 20_000);

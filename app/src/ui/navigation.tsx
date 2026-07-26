@@ -352,6 +352,13 @@ function AddContactContainer({ navigation }: any) {
           .then(() => navigation.navigate('Chats'))
           .catch((e) => setError(e instanceof Error ? e.message : String(e)));
       }}
+      onSubmitCode={(code) => {
+        setError(null);
+        void app
+          .acceptSpokenCode(code)
+          .then(() => navigation.navigate('Chats'))
+          .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      }}
     />
   );
 }

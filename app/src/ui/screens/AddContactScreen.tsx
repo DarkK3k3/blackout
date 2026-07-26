@@ -11,10 +11,10 @@
 // testable et que la camera ne demarre que sur l'onglet concerne.
 
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { CutFrame } from '../components/CutFrame';
-import { StatusBadge, IconScan, LogoMark } from '../components/Primitives';
+import { StatusBadge, IconScan, LogoMark, ActionButton } from '../components/Primitives';
 import { colors, space, type } from '../theme/tokens';
 
 export interface AddContactScreenProps {
@@ -27,10 +27,18 @@ export interface AddContactScreenProps {
   /** Rendu de la camera : injecte pour rester testable et econome. */
   Scanner?: React.ComponentType<{ onScanned: (value: string) => void }>;
   onScanned: (value: string) => void;
+  /** Code dicte, saisi a la main : indispensable si la camera refuse. */
+  onSubmitCode: (code: string) => void;
   error?: string | null;
 }
 
-type Tab = 'mine' | 'scan';
+type Tab = 'mine' | 'scan' | 'type';
+
+const TAB_LABELS: Record<Tab, string> = {
+  mine: 'MON CODE',
+  scan: 'SCANNER',
+  type: 'SAISIR',
+};
 
 export function AddContactScreen({
   invitePayload,
@@ -38,14 +46,16 @@ export function AddContactScreen({
   myShortFingerprint,
   Scanner,
   onScanned,
+  onSubmitCode,
   error,
 }: AddContactScreenProps) {
   const [tab, setTab] = React.useState<Tab>('mine');
+  const [typedCode, setTypedCode] = React.useState('');
 
   return (
     <View style={styles.root}>
       <View style={styles.tabs}>
-        {(['mine', 'scan'] as Tab[]).map((t) => (
+        {(['mine', 'scan', 'type'] as Tab[]).map((t) => (
           <Pressable
             key={t}
             onPress={() => setTab(t)}
@@ -53,9 +63,7 @@ export function AddContactScreen({
             accessibilityState={{ selected: tab === t }}
             style={[styles.tab, tab === t && styles.tabActive]}
           >
-            <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>
-              {t === 'mine' ? 'MON CODE' : 'SCANNER'}
-            </Text>
+            <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>{TAB_LABELS[t]}</Text>
           </Pressable>
         ))}
       </View>
@@ -96,7 +104,7 @@ export function AddContactScreen({
             a usage unique : reaffiche-le pour chaque nouvelle personne.
           </Text>
         </ScrollView>
-      ) : (
+      ) : tab === 'scan' ? (
         <View style={styles.scanArea}>
           {Scanner ? (
             <Scanner onScanned={onScanned} />
@@ -111,6 +119,36 @@ export function AddContactScreen({
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={styles.heading}>Saisis le code</Text>
+          <Text style={styles.help}>
+            Le code affiche sous le QR de l'autre personne. Les tirets et la
+            casse n'ont pas d'importance.
+          </Text>
+          <TextInput
+            value={typedCode}
+            onChangeText={setTypedCode}
+            placeholder="ABCDE-FGHIJ-KLMNO…"
+            placeholderTextColor={colors.textFaint}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            multiline
+            style={styles.codeInput}
+            accessibilityLabel="Code d'invitation"
+          />
+          <ActionButton
+            label="Ajouter ce contact"
+            onPress={() => onSubmitCode(typedCode)}
+            disabled={typedCode.trim().length < 10}
+            style={styles.submit}
+          />
+          {error ? <Text style={styles.typedError}>{error}</Text> : null}
+          <Text style={styles.help}>
+            Cette methode suppose que vous utilisez le meme serveur relais :
+            le code dicte ne transporte pas son adresse.
+          </Text>
+        </ScrollView>
       )}
     </View>
   );
@@ -132,6 +170,19 @@ const styles = StyleSheet.create({
   spokenPanel: { alignSelf: 'stretch' },
   spokenCode: { ...type.data, color: colors.cyan, textAlign: 'center', padding: space.md, lineHeight: 22 },
   help: { ...type.body, color: colors.textDim, textAlign: 'center' },
+  codeInput: {
+    ...type.data,
+    color: colors.text,
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: space.md,
+    minHeight: 90,
+    alignSelf: 'stretch',
+    textAlign: 'center',
+  },
+  submit: { alignSelf: 'stretch' },
+  typedError: { ...type.body, color: colors.danger, textAlign: 'center' },
   scanArea: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scanPlaceholder: { alignItems: 'center', gap: space.md, padding: space.xl },
   reticle: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
