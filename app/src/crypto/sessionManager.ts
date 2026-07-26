@@ -15,6 +15,7 @@
 import type { SignalBridge, PreKeyBundleJson } from './signalBridge.types';
 import { CIPHERTEXT_PREKEY, makePreKeyBundle } from './signalBridge.types';
 import type { BlackoutStore, IdentityRow } from '../storage/store';
+import { uuidV4, toBase64, fromBase64 } from '../platform/runtime';
 
 /** Contenu du QR d'invitation (uniquement du PUBLIC + adresses). */
 export interface InvitePayload {
@@ -36,15 +37,9 @@ const KYBER_PREKEY_ID = 1;
 const ONE_TIME_START_ID = 100;
 const ONE_TIME_BATCH = 20;
 
-function uuid(): string {
-  // uuid v4 via crypto.getRandomValues (dispo sous Hermes et Node 20+)
-  const bytes = new Uint8Array(16);
-  globalThis.crypto.getRandomValues(bytes);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const h = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
-}
+// L'aleatoire et les encodages passent par platform/runtime : Hermes ne
+// fournit ni `crypto`, ni `btoa`/`atob`, contrairement a Node.
+const uuid = uuidV4;
 
 export class SessionManager {
   constructor(
@@ -220,16 +215,5 @@ export class SessionManager {
   }
 }
 
-// Conversions base64 sans dependre de Buffer (Hermes ne l'a pas).
-function toB64(bytes: Uint8Array): string {
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return globalThis.btoa(bin);
-}
-
-function fromB64(b64: string): Uint8Array {
-  const bin = globalThis.atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
+const toB64 = toBase64;
+const fromB64 = fromBase64;

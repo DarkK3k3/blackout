@@ -6,6 +6,7 @@
 // arriere-plan apres un premier deverrouillage post-redemarrage.
 
 import * as SecureStore from 'expo-secure-store';
+import { randomId } from '../../platform/runtime';
 
 const DB_KEY_NAME = 'blackout.dbkey.v1';
 
@@ -15,9 +16,7 @@ export async function getOrCreateDbKey(): Promise<string> {
   });
   if (existing) return existing;
 
-  const bytes = new Uint8Array(32);
-  globalThis.crypto.getRandomValues(bytes);
-  const key = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  const key = randomId(32); // 256 bits
 
   await SecureStore.setItemAsync(DB_KEY_NAME, key, {
     keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,

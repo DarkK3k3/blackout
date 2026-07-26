@@ -12,6 +12,7 @@ import { RelayClient } from '../transport/relayClient';
 import { pairFingerprint, monthlyVerificationCode, currentYearMonth } from '../crypto/verification';
 import type { ChatSummary } from '../ui/screens/ChatListScreen';
 import type { ChatMessage } from '../ui/screens/ConversationScreen';
+import { randomId, utf8Encode, utf8Decode, fromBase64 } from '../platform/runtime';
 
 /** Charge utile du QR d'invitation : bundle crypto + boite de reponse. */
 export interface InviteQr extends InvitePayload {
@@ -31,14 +32,11 @@ interface MessagePayload {
   };
 }
 
-function newId(): string {
-  const b = new Uint8Array(12);
-  globalThis.crypto.getRandomValues(b);
-  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
-}
-
-const encode = (s: string) => new TextEncoder().encode(s);
-const decode = (b: Uint8Array) => new TextDecoder().decode(b);
+// Aleatoire et encodages : via platform/runtime, jamais via les objets
+// globaux — Hermes n'a ni `crypto`, ni `TextEncoder` garanti.
+const newId = () => randomId(12);
+const encode = utf8Encode;
+const decode = utf8Decode;
 
 export class Blackout {
   readonly sessions: SessionManager;
@@ -273,9 +271,4 @@ export class Blackout {
   }
 }
 
-function b64(s: string): Uint8Array {
-  const bin = globalThis.atob(s);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
+const b64 = fromBase64;
