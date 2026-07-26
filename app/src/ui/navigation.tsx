@@ -13,7 +13,7 @@ import { ChatListScreen } from './screens/ChatListScreen';
 import { ConversationScreen, type ChatMessage } from './screens/ConversationScreen';
 import { VerificationScreen } from './screens/VerificationScreen';
 import { AddContactScreen } from './screens/AddContactScreen';
-import { QrScanner } from './components/QrScanner';
+import { LazyQrScanner } from './components/LazyQrScanner';
 import { colors, fonts, space, type } from './theme/tokens';
 import { RELAY_URL, MY_DISPLAY_NAME } from '../config';
 
@@ -268,7 +268,7 @@ function AddContactContainer({ navigation }: any) {
     <AddContactScreen
       invitePayload={invite.encoded}
       myShortFingerprint={invite.fingerprint}
-      Scanner={QrScanner}
+      Scanner={LazyQrScanner}
       error={error}
       onScanned={(value) => {
         void app
