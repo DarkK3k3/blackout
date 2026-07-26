@@ -1,0 +1,51 @@
+# Fastfile — automatisation des builds iOS DEPUIS UN MAC.
+#
+# Tu n'en as PAS besoin avec EAS : `eas build --platform ios --profile
+# production --auto-submit` fait la meme chose depuis Windows, et
+# incremente deja le build number tout seul (voir eas.json).
+#
+# Ce fichier est la si tu as un jour un Mac avec Xcode et que tu veux
+# te passer du cloud. Voir docs/SETUP-IOS.md.
+#
+# Prerequis sur le Mac :
+#   sudo gem install fastlane
+#   cd app && npx expo prebuild -p ios && cd ios && pod install
+#   export LIBSIGNAL_FFI_PREBUILD_CHECKSUM=<valeur dans eas.json>
+
+default_platform(:ios)
+
+APP_IDENTIFIER = "com.kevsvod.blackout"
+SCHEME = "Blackout"
+
+platform :ios do
+  desc "Build et televerse une nouvelle build vers TestFlight"
+  lane :beta do
+    # Le checksum du binaire libsignal precompile est exige par le
+    # podspec officiel de Signal : sans lui, la compilation echoue.
+    UI.user_error!("LIBSIGNAL_FFI_PREBUILD_CHECKSUM absent de l'environnement") if ENV["LIBSIGNAL_FFI_PREBUILD_CHECKSUM"].to_s.empty?
+
+    # Numero de build = dernier numero connu sur App Store Connect + 1.
+    # On se base sur le serveur plutot que sur un compteur local : c'est
+    # ce qui evite les collisions si tu builds depuis plusieurs machines.
+    increment_build_number(
+      xcodeproj: "ios/#{SCHEME}.xcodeproj",
+      build_number: latest_testflight_build_number(app_identifier: APP_IDENTIFIER) + 1
+    )
+
+    build_app(
+      workspace: "ios/#{SCHEME}.xcworkspace",
+      scheme: SCHEME,
+      export_method: "app-store",
+      clean: true
+    )
+
+    upload_to_testflight(
+      app_identifier: APP_IDENTIFIER,
+      skip_waiting_for_build_processing: true,
+      # Groupe de testeurs internes : pas de revue Apple, dispo tout de suite
+      distribute_external: false
+    )
+
+    UI.success("Build televersee. Elle apparaitra dans TestFlight dans ~10 min.")
+  end
+end

@@ -1,0 +1,89 @@
+{
+  "months": [
+    "2025-12",
+    "2026-01",
+    "2026-07",
+    "2026-08",
+    "2030-11"
+  ],
+  "vectors": [
+    {
+      "aPublicHex": "98c1611669a35c68361cb291285aabbbff5859fbab23bf77f7dc03c86130442f",
+      "bPublicHex": "c3f04ec7f7c13254218c62c9d7bf9bcee175e6f49d50bbb887633fc5686c2270",
+      "fingerprintHex": "ec2a05c6be7036dd390c149d67c5cb5c7401b93ef2cd828686fb2ef051740526",
+      "fingerprintSwappedHex": "ec2a05c6be7036dd390c149d67c5cb5c7401b93ef2cd828686fb2ef051740526",
+      "codes": {
+        "2025-12": "7133-7469",
+        "2026-01": "7654-1004",
+        "2026-07": "7598-8760",
+        "2026-08": "6655-7299",
+        "2030-11": "0395-4672"
+      }
+    },
+    {
+      "aPublicHex": "e1a8020e3ccd1e3902eafd9a21ae42a8a05b76cb9200750d35c6b886667cea61",
+      "bPublicHex": "29cf5d7f2aaa5cd11456033648ee01358dfed5c6a19fb5bed83c798ad5e2a80c",
+      "fingerprintHex": "4a77399198d6df00e7ea19a96232ac23065e6d35bfd08c6d6c4d34aff1deb127",
+      "fingerprintSwappedHex": "4a77399198d6df00e7ea19a96232ac23065e6d35bfd08c6d6c4d34aff1deb127",
+      "codes": {
+        "2025-12": "1800-5184",
+        "2026-01": "7042-2734",
+        "2026-07": "5561-4623",
+        "2026-08": "8799-7491",
+        "2030-11": "2714-7570"
+      }
+    },
+    {
+      "aPublicHex": "b5a3c4287b34e9889bb766711f6844f58fa15ef11f4472126cec26685c62b533",
+      "bPublicHex": "1af6019f7a25b8ed7479bb85f3e07d5478ec284082145868be5fedd2173ca314",
+      "fingerprintHex": "5afa1a74a20115765369306086d513495454011a268618fc5f2db06fa2180a4a",
+      "fingerprintSwappedHex": "5afa1a74a20115765369306086d513495454011a268618fc5f2db06fa2180a4a",
+      "codes": {
+        "2025-12": "6522-0935",
+        "2026-01": "9231-4013",
+        "2026-07": "7131-8994",
+        "2026-08": "8646-1914",
+        "2030-11": "8331-3541"
+      }
+    },
+    {
+      "aPublicHex": "768080ea0beb6d0a80fae448fc1c87159048da155b5bcd0dd1ef78fe37cfc976",
+      "bPublicHex": "485b5577c31d602e5396d5342369aad870e07c97f55cd00ec0c0638f64592c7f",
+      "fingerprintHex": "91d425a9e4a86e18475dec9709703d94726b300a132c4c5230aa9e5f596723b2",
+      "fingerprintSwappedHex": "91d425a9e4a86e18475dec9709703d94726b300a132c4c5230aa9e5f596723b2",
+      "codes": {
+        "2025-12": "7601-2813",
+        "2026-01": "4546-0547",
+        "2026-07": "1808-6962",
+        "2026-08": "0996-2492",
+        "2030-11": "7770-1050"
+      }
+    },
+    {
+      "aPublicHex": "eae06a87b5f6e4330c73410ea0dad57fc323938714b8298efb5e4e9efe0fb96c",
+      "bPublicHex": "9faed0f1fd4a020417cee4e7b80ba0632ac9f8e0da832a678a94f4699596266d",
+      "fingerprintHex": "b5cb0803be3329aa700335a1adb606b8ec36a7f69d31d0f5a0035667f596e1c8",
+      "fingerprintSwappedHex": "b5cb0803be3329aa700335a1adb606b8ec36a7f69d31d0f5a0035667f596e1c8",
+      "codes": {
+        "2025-12": "0676-6418",
+        "2026-01": "1920-5065",
+        "2026-07": "5825-0846",
+        "2026-08": "6313-5593",
+        "2030-11": "5972-0005"
+      }
+    },
+    {
+      "aPublicHex": "51dde03fe5d8c7a83cfd50f5bca6b2699bf136617ad367d18766d7305325073d",
+      "bPublicHex": "e9b7a90451cfab1cd1c49770ce59e96656865ad9bb1ae7fb45bff37f5c0d180f",
+      "fingerprintHex": "4a8c8049e54d05f4eb0c2303994c9369c0adbd2a02b10edc6abf6c47502d8161",
+      "fingerprintSwappedHex": "4a8c8049e54d05f4eb0c2303994c9369c0adbd2a02b10edc6abf6c47502d8161",
+      "codes": {
+        "2025-12": "9212-2161",
+        "2026-01": "4175-8814",
+        "2026-07": "1184-8300",
+        "2026-08": "5493-8692",
+        "2030-11": "1678-3085"
+      }
+    }
+  ]
+}

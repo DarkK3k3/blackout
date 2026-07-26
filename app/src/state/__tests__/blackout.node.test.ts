@@ -1,0 +1,127 @@
+/**
+ * @jest-environment node
+ *
+ * Le test le plus proche de l'usage reel : deux instances completes de
+ * l'app (stockage + sessions libsignal + relais lance en sous-processus)
+ * qui echangent comme le feraient deux telephones. On verifie le
+ * parcours entier : QR d'invitation -> scan -> conversation dans les
+ * deux sens -> code de verification -> reception temps reel.
+ */
+
+import { spawn, type ChildProcess } from 'node:child_process';
+import { join } from 'node:path';
+import { Blackout } from '../blackout';
+import { nodeSignalBridge } from '../../crypto/testutils/nodeSignalBridge';
+import { BlackoutStore } from '../../storage/store';
+import { createNodeSqlExecutor } from '../../storage/testutils/nodeSqlExecutor';
+
+const RELAY_DIR = join(__dirname, '..', '..', '..', '..', 'relay-server');
+
+let relayProcess: ChildProcess;
+let serverUrl: string;
+
+beforeAll(async () => {
+  relayProcess = spawn(process.execPath, ['src/server.js'], {
+    cwd: RELAY_DIR,
+    env: { ...process.env, PORT: '0', DATA_FILE: '' },
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+  serverUrl = await new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('relais pas demarre')), 10_000);
+    relayProcess.stdout!.on('data', (chunk: Buffer) => {
+      const m = chunk.toString().match(/ecoute sur :(\d+)/);
+      if (m) {
+        clearTimeout(timer);
+        resolve(`http://127.0.0.1:${m[1]}`);
+      }
+    });
+  });
+}, 20_000);
+
+afterAll(() => relayProcess.kill());
+
+async function makeApp(name: string) {
+  const store = await BlackoutStore.open(createNodeSqlExecutor());
+  const app = new Blackout(store, nodeSignalBridge, serverUrl, name);
+  await app.init();
+  return { app, store };
+}
+
+test('parcours complet : invitation, conversation, verification', async () => {
+  const bob = await makeApp('Bob');
+  const alice = await makeApp('Alice');
+
+  // --- 1. Bob affiche son QR d'invitation
+  const invite = await bob.app.createInviteQr();
+  expect(JSON.parse(invite.encoded).v).toBe(1);
+  expect(invite.payload.bundle.kyberPreKeyPublic).toBeTruthy(); // PQXDH present
+
+  // --- 2. Alice scanne : contact + session + hello envoye
+  const bobId = await alice.app.acceptInviteQr(invite.encoded);
+  const aliceChats = await alice.app.listChats();
+  expect(aliceChats).toHaveLength(1);
+  expect(aliceChats[0].id).toBe(bobId);
+  expect(aliceChats[0].verified).toBe(false); // pas encore verifie out-of-band
+
+  // --- 3. Bob releve : le hello cree/complete le contact Alice
+  const activity: string[] = [];
+  await bob.app.startListening((id) => activity.push(id));
+  await waitFor(async () => (await bob.app.listChats()).length === 1);
+
+  const bobChats = await bob.app.listChats();
+  const aliceId = bobChats[0].id;
+  expect(bobChats[0].title).toBe('Alice'); // nom appris via le hello
+
+  // --- 4. Conversation dans les deux sens
+  await alice.app.sendText(bobId, 'On se retrouve ou ce soir ?');
+  await waitFor(async () => (await bob.app.listMessages(aliceId)).some((m) => m.body.includes('ce soir')));
+
+  await alice.app.startListening(() => {});
+  await bob.app.sendText(aliceId, 'Chez moi, 20h.');
+  await waitFor(async () => (await alice.app.listMessages(bobId)).some((m) => m.body === 'Chez moi, 20h.'));
+
+  const aliceThread = await alice.app.listMessages(bobId);
+  const sent = aliceThread.find((m) => m.body.includes('ce soir'))!;
+  const received = aliceThread.find((m) => m.body === 'Chez moi, 20h.')!;
+  expect(sent.mine).toBe(true);
+  expect(sent.status).toBe('sent');
+  expect(received.mine).toBe(false);
+
+  // --- 5. Code de verification : identique des deux cotes, et stable
+  const vAlice = await alice.app.verificationFor(bobId);
+  const vBob = await bob.app.verificationFor(aliceId);
+  expect(vAlice.code).toBe(vBob.code);
+  expect(vAlice.code).toMatch(/^\d{4}-\d{4}$/);
+  expect(vAlice.fingerprintHex).toBe(vBob.fingerprintHex);
+
+  // le code d'un autre mois differe, mais l'empreinte ne bouge pas
+  const vNextMonth = await alice.app.verificationFor(bobId, new Date(2026, 11, 1));
+  expect(vNextMonth.yearMonth).toBe('2026-12');
+  expect(vNextMonth.code).not.toBe(vAlice.code);
+  expect(vNextMonth.fingerprintHex).toBe(vAlice.fingerprintHex);
+
+  // --- 6. Marquage verifie
+  await alice.app.markVerified(bobId);
+  expect((await alice.app.listChats())[0].verified).toBe(true);
+  // ... et la conversation continue de fonctionner apres verification
+  await alice.app.sendText(bobId, 'Nickel !');
+  await waitFor(async () => (await bob.app.listMessages(aliceId)).some((m) => m.body === 'Nickel !'));
+
+  alice.app.stopListening();
+  bob.app.stopListening();
+}, 40_000);
+
+test('un QR invalide est rejete proprement', async () => {
+  const alice = await makeApp('Alice');
+  await expect(alice.app.acceptInviteQr('pas du json')).rejects.toThrow('illisible');
+  await expect(alice.app.acceptInviteQr('{"v":99}')).rejects.toThrow('invitation Blackout');
+});
+
+async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 15_000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await predicate()) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error('condition non atteinte dans le delai imparti');
+}

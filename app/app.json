@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "Blackout",
+    "slug": "blackout",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0A0F",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.kevsvod.blackout",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Blackout utilise la caméra uniquement pour scanner les QR codes d'ajout de contact et de vérification.",
+        "NSPhotoLibraryUsageDescription": "Blackout accède à vos photos uniquement pour en envoyer dans une conversation chiffrée.",
+        "NSBluetoothAlwaysUsageDescription": "Blackout utilise le Bluetooth pour relayer les messages chiffrés entre appareils proches quand internet est indisponible."
+      }
+    },
+    "android": {
+      "package": "com.kevsvod.blackout",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.INTERNET"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "./plugins/withLibsignalPod",
+      "./plugins/withDesugaring",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraMavenRepos": [
+              "https://build-artifacts.signal.org/libraries/maven/"
+            ]
+          }
+        }
+      ],
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Blackout accède à vos photos uniquement pour en envoyer dans une conversation chiffrée."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b618db6c-0e42-449f-942e-b190d47a3d6d"
+      }
+    },
+    "owner": "kevsvod"
+  }
+}

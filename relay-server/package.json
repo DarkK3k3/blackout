@@ -1,0 +1,19 @@
+{
+  "name": "blackout-relay",
+  "version": "0.1.0",
+  "description": "Relais store-and-forward de blobs chiffres, modele simplex queues. Ne voit jamais un message en clair ni un identifiant utilisateur.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "MIT",
+  "private": true
+}

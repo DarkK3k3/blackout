@@ -1,0 +1,27 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.blackoutsignal'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.blackoutsignal"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+// NB : le depot maven de Signal (versions > 0.76) est declare au niveau
+// projet via expo-build-properties (extraMavenRepos, voir app.json) —
+// un bloc repositories{} ici serait ignore par la resolution de :app.
+dependencies {
+  // MEME version que LibSignalClient (iOS) et @signalapp/libsignal-client
+  // (tests Jest) — voir docs/DECISIONS.md, interop du format de messages.
+  implementation 'org.signal:libsignal-android:0.99.1'
+}

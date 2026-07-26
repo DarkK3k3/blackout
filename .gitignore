@@ -1,0 +1,20 @@
+# dependances
+node_modules/
+
+# projets natifs generes par `expo prebuild` (recrees par la CI)
+/app/android/
+/app/ios/
+/app/.expo/
+
+# donnees locales du relais (jetons haches, messages en attente)
+/relay-server/data/
+
+# binaires et journaux
+*.exe
+*.log
+*.apk
+*.ipa
+
+# systeme
+.DS_Store
+Thumbs.db
