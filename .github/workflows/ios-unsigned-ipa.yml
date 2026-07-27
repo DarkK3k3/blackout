@@ -11,11 +11,20 @@
 name: IPA iOS (non signe)
 
 on:
+  # Chaque envoi de code produit un IPA : plus besoin de venir cliquer.
+  # L'adresse du relais utilisee est alors celle de app/src/config.ts,
+  # qui n'est qu'une valeur par defaut — elle se change dans l'ecran
+  # Reglages de l'app, sans recompiler.
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   workflow_dispatch:
     inputs:
       relay_url:
-        description: "URL du serveur relais (ex. https://mon-relais.trycloudflare.com)"
-        required: true
+        description: "URL du relais (vide = celle de app/src/config.ts)"
+        required: false
       display_name:
         description: "Nom affiche a tes contacts"
         required: false
@@ -31,8 +40,9 @@ jobs:
       # binaire libsignal precompile. Doit correspondre a la version
       # epinglee dans plugins/withLibsignalPod.js (v0.99.1).
       LIBSIGNAL_FFI_PREBUILD_CHECKSUM: c7b1ad515b0698497f051cb7a65e0d9a6e1e5d707db82aa334fa8c834e3e4fd8
+      # Vides sur un push : app/src/config.ts fournit alors les valeurs.
       EXPO_PUBLIC_RELAY_URL: ${{ inputs.relay_url }}
-      EXPO_PUBLIC_DISPLAY_NAME: ${{ inputs.display_name }}
+      EXPO_PUBLIC_DISPLAY_NAME: ${{ inputs.display_name || 'Kevin' }}
 
     steps:
       # expo-modules-jsi expose un paquet Swift en swift-tools-version 6.2 :
