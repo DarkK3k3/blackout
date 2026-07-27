@@ -50,6 +50,10 @@ export class Blackout {
   readonly sessions: SessionManager;
   private relay: RelayClient;
   private stopSubscription: (() => void) | null = null;
+  private listeners: {
+    onActivity: (conversationId: string) => void;
+    onStatus?: (s: 'connected' | 'disconnected') => void;
+  } | null = null;
 
   constructor(
     private store: BlackoutStore,
@@ -123,6 +127,9 @@ export class Blackout {
     // La boite est enregistree sans contact : elle sera rattachee au
     // premier expediteur qui s'en sert (une boite = un correspondant).
     await this.store.savePendingInbox(inbox.queueId, inbox.readToken, this.serverUrl);
+    // Nouvelle boite : sans reabonnement, rien n'y serait recu avant le
+    // prochain demarrage de l'application.
+    await this.subscribeToAllInboxes();
 
     const json = JSON.stringify(payload);
     const inviteId = await this.relay.putInvite(json);
@@ -185,6 +192,7 @@ export class Blackout {
       outQueueId: invite.inbox.queueId,
       outWriteToken: invite.inbox.writeToken,
     });
+    await this.subscribeToAllInboxes();
 
     const identity = await this.store.getIdentity();
     await this.send(contactId, {
@@ -289,6 +297,22 @@ export class Blackout {
     onActivity: (conversationId: string) => void,
     onStatus?: (s: 'connected' | 'disconnected') => void,
   ): Promise<void> {
+    // Memorises pour pouvoir se reabonner quand une boite apparait.
+    this.listeners = { onActivity, onStatus };
+    await this.subscribeToAllInboxes();
+  }
+
+  /**
+   * (Re)prend l'ecoute de TOUTES les boites connues.
+   *
+   * Indispensable apres la creation d'une boite : l'abonnement ne
+   * couvrait que les boites existant au demarrage, si bien qu'un
+   * contact fraichement ajoute ne recevait rien jusqu'au redemarrage
+   * de l'application.
+   */
+  private async subscribeToAllInboxes(): Promise<void> {
+    if (!this.listeners) return; // l'ecoute n'a pas encore ete demandee
+    const { onActivity, onStatus } = this.listeners;
     const inboxes = await this.store.listInboxes();
     this.stopSubscription?.();
     this.stopSubscription = this.relay.subscribe(

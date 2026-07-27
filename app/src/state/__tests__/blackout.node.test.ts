@@ -234,3 +234,42 @@ test('un code dicte errone est rejete sans creer de contact', async () => {
   await expect(alice.app.acceptSpokenCode('ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ-ZZ')).rejects.toThrow();
   expect(await alice.app.listChats()).toHaveLength(0);
 }, 60_000);
+
+test('les messages arrivent SANS redemarrer l app apres un ajout de contact', async () => {
+  // Regression : l'abonnement aux boites etait fige au demarrage. Une
+  // boite creee ensuite (en affichant ou en acceptant une invitation)
+  // n'etait jamais ecoutee — il fallait relancer l'app pour recevoir.
+  //
+  // Ce test reproduit l'ORDRE REEL de l'application : on ecoute
+  // d'abord, on ajoute le contact ensuite. Les tests precedents
+  // faisaient l'inverse, ce qui masquait le defaut.
+  const bob = await makeApp('Bob');
+  const alice = await makeApp('Alice');
+
+  const recus: string[] = [];
+  await bob.app.startListening((id) => recus.push(id));
+  await alice.app.startListening(() => {});
+
+  // L'invitation cree une boite APRES le debut de l'ecoute
+  const invite = await bob.app.createInviteQr();
+  const bobId = await alice.app.acceptInviteQr(invite.encoded);
+
+  // Le hello d'Alice doit arriver sans aucun redemarrage
+  await waitFor(async () => (await bob.app.listChats()).length === 1);
+  const aliceId = (await bob.app.listChats())[0].id;
+
+  // ... et les messages suivants aussi, dans les deux sens
+  await alice.app.sendText(bobId, 'premier message apres ajout');
+  await waitFor(async () =>
+    (await bob.app.listMessages(aliceId)).some((m) => m.body === 'premier message apres ajout'),
+  );
+
+  await bob.app.sendText(aliceId, 'reponse immediate');
+  await waitFor(async () =>
+    (await alice.app.listMessages(bobId)).some((m) => m.body === 'reponse immediate'),
+  );
+
+  expect(recus.length).toBeGreaterThan(0);
+  alice.app.stopListening();
+  bob.app.stopListening();
+}, 60_000);
