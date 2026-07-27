@@ -8,6 +8,7 @@ import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
 import { CutFrame } from '../components/CutFrame';
 import { Scanlines } from '../components/Glitch';
 import { ActionButton, StatusBadge, IconLock, IconMesh, LogoMark } from '../components/Primitives';
+import { Screen } from '../components/Screen';
 import { colors, space, type } from '../theme/tokens';
 
 export interface ChatSummary {
@@ -50,7 +51,7 @@ export function ChatListScreen({
   onOpenMap,
 }: ChatListScreenProps) {
   return (
-    <View style={styles.root}>
+    <Screen style={styles.root}>
       <Scanlines opacity={0.035} />
 
       <View style={styles.header}>
@@ -137,12 +138,12 @@ export function ChatListScreen({
       />
 
       <ActionButton label="+ Ajouter un contact" onPress={onAddContact} style={styles.cta} />
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.void, paddingTop: space.xl },
+  root: {},
   header: {
     flexDirection: 'row',
     alignItems: 'center',

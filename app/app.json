@@ -57,6 +57,12 @@
         {
           "locationWhenInUsePermission": "Blackout partage ta position uniquement avec les contacts que tu choisis, de facon chiffree et pour une duree limitee que tu fixes."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#FF3B1F"
+        }
       ]
     ],
     "extra": {

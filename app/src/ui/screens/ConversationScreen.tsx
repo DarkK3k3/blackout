@@ -17,6 +17,7 @@ import {
 import { CutFrame } from '../components/CutFrame';
 import { GlitchText } from '../components/Glitch';
 import { StatusBadge, IconLock } from '../components/Primitives';
+import { useSafeInsets } from '../components/Screen';
 import { colors, space, type } from '../theme/tokens';
 
 export interface ChatMessage {
@@ -37,6 +38,8 @@ export interface ConversationScreenProps {
   onSend: (text: string) => void;
   onSendPhoto?: () => void;
   onOpenVerification: () => void;
+  /** Retour : l en-tete natif est masque, ce bouton le remplace. */
+  onBack?: () => void;
   /** Envoi ponctuel : une position, maintenant. */
   onShareLocationOnce?: () => void;
   /** Ouvre un partage continu pour la duree choisie, en minutes. */
@@ -67,6 +70,7 @@ export function ConversationScreen({
   onSend,
   onSendPhoto,
   onOpenVerification,
+  onBack,
   onShareLocationOnce,
   onShareLocationFor,
   onStopSharingLocation,
@@ -74,6 +78,7 @@ export function ConversationScreen({
 }: ConversationScreenProps) {
   const [draft, setDraft] = React.useState('');
   const [locationPanel, setLocationPanel] = React.useState(false);
+  const insets = useSafeInsets();
   const partageActif = Boolean(sharingUntil && sharingUntil > Date.now());
 
   const send = () => {
@@ -86,10 +91,25 @@ export function ConversationScreen({
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      // L'en-tete de navigation est masque pour cet ecran : le decalage
+      // est donc nul. Avec un en-tete natif EN PLUS du notre, le clavier
+      // recouvrait la zone de saisie.
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
     >
-      <Pressable onPress={onOpenVerification} accessibilityRole="button" style={styles.header}>
-        <View style={styles.headerText}>
+      <View style={[styles.header, { paddingTop: insets.top + space.sm }]}>
+        {onBack ? (
+          <Pressable
+            onPress={onBack}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+            hitSlop={12}
+            style={styles.backButton}
+          >
+            <Text style={styles.backGlyph}>‹</Text>
+          </Pressable>
+        ) : null}
+        <Pressable onPress={onOpenVerification} accessibilityRole="button" style={styles.headerText}>
           <Text style={styles.title} numberOfLines={1}>
             {title}
           </Text>
@@ -102,13 +122,15 @@ export function ConversationScreen({
               active={verified}
             />
           </View>
-        </View>
-      </Pressable>
+        </Pressable>
+      </View>
 
       <FlatList
         data={messages}
         keyExtractor={(m) => m.id}
         contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         renderItem={({ item }) => (
           <View style={[styles.bubbleWrap, item.mine ? styles.mineWrap : styles.theirsWrap]}>
             <CutFrame
@@ -234,13 +256,17 @@ export function ConversationScreen({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.void },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: space.lg,
-    paddingTop: space.xl,
     paddingBottom: space.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
-  headerText: { gap: space.xs },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  headerText: { flex: 1, gap: space.xs },
+  backButton: { paddingRight: space.md, paddingVertical: space.xs },
+  backGlyph: { color: colors.ember, fontSize: 34, lineHeight: 34, fontWeight: '300' },
   title: { ...type.title, color: colors.text },
   headerBadges: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   list: { padding: space.lg, gap: space.sm },

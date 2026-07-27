@@ -1,19 +1,22 @@
 // MapScreen — carte des positions partagees.
 //
 // Difference de fond avec les applications de localisation familiale
-// grand public : ici, le serveur ne voit RIEN. Les positions voyagent
-// chiffrees dans la meme session que les messages, et ne sont lisibles
-// que par la personne a qui tu les envoies.
+// grand public : ici le serveur ne voit RIEN. Les positions voyagent
+// chiffrees dans la meme session que les messages.
 //
-// L'ecran affiche en permanence QUI te voit et jusqu'a quand : un
-// partage de position qu'on oublie est le vrai danger de ce genre de
-// fonction.
+// L'ergonomie s'en inspire en revanche volontiers : la carte occupe
+// tout l'ecran, et une bande de cartes-contacts glisse en bas. Toucher
+// quelqu'un centre la carte sur lui. L'information la plus utile —
+// « a quelle distance » et « ca date de quand » — est lisible d'un
+// coup d'oeil, sans ouvrir de menu.
 
 import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
-import MapView, { Marker, Circle, PROVIDER_DEFAULT } from 'react-native-maps';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import MapView, { Marker, Circle, PROVIDER_DEFAULT, type Region } from 'react-native-maps';
 import { CutFrame } from '../components/CutFrame';
 import { ActionButton, StatusBadge } from '../components/Primitives';
+import { useSafeInsets } from '../components/Screen';
+import { distanceM, distanceLisible, initiales, ageLisible, resteLisible } from './mapMath';
 import { colors, space, type } from '../theme/tokens';
 
 export interface SharedLocation {
@@ -36,39 +39,36 @@ export interface MapScreenProps {
   locations: SharedLocation[];
   /** Partages que J'AI ouverts : qui me voit, et jusqu'a quand. */
   outgoing: OutgoingShare[];
+  /** Ma propre position, pour calculer les distances. */
+  myPosition?: { latitude: number; longitude: number } | null;
   permissionGranted: boolean;
   onRequestPermission: () => void;
   onStopSharing: (contactId: string) => void;
   onForget: (contactId: string) => void;
+  onOpenChat?: (contactId: string) => void;
 }
 
-function ageLisible(ms: number): string {
-  const minutes = Math.floor((Date.now() - ms) / 60_000);
-  if (minutes < 1) return "a l'instant";
-  if (minutes < 60) return `il y a ${minutes} min`;
-  const heures = Math.floor(minutes / 60);
-  if (heures < 24) return `il y a ${heures} h`;
-  return `il y a ${Math.floor(heures / 24)} j`;
-}
-
-function resteLisible(until: number): string {
-  const minutes = Math.max(0, Math.round((until - Date.now()) / 60_000));
-  if (minutes < 60) return `${minutes} min`;
-  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
-}
+const CARD_WIDTH = Math.min(280, Dimensions.get('window').width * 0.75);
 
 export function MapScreen({
   locations,
   outgoing,
+  myPosition,
   permissionGranted,
   onRequestPermission,
   onStopSharing,
   onForget,
+  onOpenChat,
 }: MapScreenProps) {
-  const region = React.useMemo(() => {
-    if (locations.length === 0) return undefined;
-    const lats = locations.map((l) => l.latitude);
-    const lons = locations.map((l) => l.longitude);
+  const insets = useSafeInsets();
+  const mapRef = React.useRef<MapView>(null);
+  const [selection, setSelection] = React.useState<string | null>(null);
+
+  const regionInitiale = React.useMemo((): Region | undefined => {
+    const points = [...locations, ...(myPosition ? [myPosition] : [])];
+    if (points.length === 0) return undefined;
+    const lats = points.map((l) => l.latitude);
+    const lons = points.map((l) => l.longitude);
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
     const minLon = Math.min(...lons);
@@ -76,118 +76,180 @@ export function MapScreen({
     return {
       latitude: (minLat + maxLat) / 2,
       longitude: (minLon + maxLon) / 2,
-      latitudeDelta: Math.max(0.02, (maxLat - minLat) * 1.6),
-      longitudeDelta: Math.max(0.02, (maxLon - minLon) * 1.6),
+      latitudeDelta: Math.max(0.01, (maxLat - minLat) * 1.8),
+      longitudeDelta: Math.max(0.01, (maxLon - minLon) * 1.8),
     };
-  }, [locations]);
+  }, [locations, myPosition]);
+
+  const centrerSur = React.useCallback((l: SharedLocation) => {
+    setSelection(l.contactId);
+    mapRef.current?.animateToRegion(
+      { latitude: l.latitude, longitude: l.longitude, latitudeDelta: 0.006, longitudeDelta: 0.006 },
+      450,
+    );
+  }, []);
+
+  const toutVoir = React.useCallback(() => {
+    setSelection(null);
+    if (regionInitiale) mapRef.current?.animateToRegion(regionInitiale, 450);
+  }, [regionInitiale]);
+
+  if (locations.length === 0 && outgoing.length === 0) {
+    return (
+      <View style={styles.emptyRoot}>
+        <Text style={styles.emptyTitle}>PERSONNE EN VUE</Text>
+        <Text style={styles.emptyBody}>
+          Aucun partage en cours. Ouvre une conversation et touche l'icone de
+          position pour partager la tienne, ou demande a quelqu'un de partager
+          la sienne.
+        </Text>
+        {!permissionGranted ? (
+          <ActionButton label="Autoriser la localisation" onPress={onRequestPermission} />
+        ) : null}
+        <Text style={styles.emptyNote}>
+          Les positions sont chiffrees comme tes messages : le serveur ne peut
+          pas les lire, et rien n'est conserve en dehors de ton telephone.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
-      {locations.length > 0 ? (
-        <MapView
-          provider={PROVIDER_DEFAULT}
-          style={styles.map}
-          initialRegion={region}
-          userInterfaceStyle="dark"
-          showsUserLocation={permissionGranted}
-        >
-          {locations.map((l) => (
-            <React.Fragment key={l.contactId}>
-              <Marker
-                coordinate={{ latitude: l.latitude, longitude: l.longitude }}
-                title={l.displayName}
-                description={ageLisible(l.measuredAt)}
-                pinColor={l.verified ? colors.cyan : colors.warn}
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_DEFAULT}
+        style={StyleSheet.absoluteFill}
+        initialRegion={regionInitiale}
+        userInterfaceStyle="dark"
+        showsUserLocation={permissionGranted}
+        showsMyLocationButton={false}
+        showsCompass={false}
+      >
+        {locations.map((l) => (
+          <React.Fragment key={l.contactId}>
+            {l.accuracyM ? (
+              // Le cercle rend la PRECISION visible : une position a 500 m
+              // pres ne doit pas ressembler a une position exacte.
+              <Circle
+                center={{ latitude: l.latitude, longitude: l.longitude }}
+                radius={l.accuracyM}
+                strokeColor={l.verified ? colors.cyan : colors.warn}
+                fillColor={l.verified ? 'rgba(0,229,255,0.10)' : 'rgba(255,179,0,0.10)'}
+                strokeWidth={1}
               />
-              {l.accuracyM ? (
-                // Le cercle rend la PRECISION visible : une position a
-                // 500 m pres ne doit pas ressembler a une position exacte.
-                <Circle
-                  center={{ latitude: l.latitude, longitude: l.longitude }}
-                  radius={l.accuracyM}
-                  strokeColor={colors.cyan}
-                  fillColor="rgba(0,229,255,0.10)"
-                  strokeWidth={1}
-                />
-              ) : null}
-            </React.Fragment>
+            ) : null}
+            <Marker
+              coordinate={{ latitude: l.latitude, longitude: l.longitude }}
+              onPress={() => centrerSur(l)}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+            >
+              <View
+                style={[
+                  styles.pin,
+                  { borderColor: l.verified ? colors.cyan : colors.warn },
+                  selection === l.contactId && styles.pinSelected,
+                ]}
+              >
+                <Text style={styles.pinText}>{initiales(l.displayName)}</Text>
+              </View>
+            </Marker>
+          </React.Fragment>
+        ))}
+      </MapView>
+
+      {/* Bandeau haut : ce que les autres voient de MOI */}
+      {outgoing.length > 0 ? (
+        <View style={[styles.topBanner, { paddingTop: insets.top + space.sm }]}>
+          {outgoing.map((o) => (
+            <Pressable
+              key={o.contactId}
+              onPress={() => onStopSharing(o.contactId)}
+              accessibilityRole="button"
+              accessibilityLabel={`Arreter le partage avec ${o.displayName}`}
+              style={styles.bannerRow}
+            >
+              <StatusBadge label={`${o.displayName} te voit`} color={colors.ember} />
+              <Text style={styles.bannerRight}>{resteLisible(o.until)} · ARRETER</Text>
+            </Pressable>
           ))}
-        </MapView>
-      ) : (
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>AUCUNE POSITION PARTAGEE</Text>
-          <Text style={styles.emptyBody}>
-            Personne ne partage sa position avec toi pour l'instant. Ouvre une
-            conversation et touche PARTAGER MA POSITION pour commencer.
-          </Text>
-          {!permissionGranted ? (
-            <ActionButton label="Autoriser la localisation" onPress={onRequestPermission} />
-          ) : null}
         </View>
-      )}
+      ) : null}
 
-      <ScrollView style={styles.panel} contentContainerStyle={styles.panelContent}>
-        {outgoing.length > 0 ? (
-          <>
-            <Text style={styles.sectionLabel}>QUI PEUT ME VOIR</Text>
-            {outgoing.map((o) => (
-              <CutFrame key={o.contactId} accent={colors.ember} corners={['tl']} style={styles.row}>
-                <View style={styles.rowInner}>
-                  <View style={styles.rowText}>
-                    <Text style={styles.name}>{o.displayName}</Text>
-                    <Text style={styles.meta}>encore {resteLisible(o.until)}</Text>
+      {locations.length > 1 ? (
+        <Pressable
+          onPress={toutVoir}
+          accessibilityRole="button"
+          accessibilityLabel="Voir tout le monde"
+          style={[styles.allButton, { top: insets.top + (outgoing.length > 0 ? 76 : 12) }]}
+        >
+          <Text style={styles.allButtonText}>TOUT VOIR</Text>
+        </Pressable>
+      ) : null}
+
+      {/* Bande de cartes : l'essentiel lisible sans ouvrir de menu */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.cards, { bottom: Math.max(insets.bottom, space.md) }]}
+        contentContainerStyle={styles.cardsContent}
+        snapToInterval={CARD_WIDTH + space.sm}
+        decelerationRate="fast"
+      >
+        {locations.map((l) => {
+          const d = myPosition ? distanceM(myPosition, l) : null;
+          return (
+            <Pressable key={l.contactId} onPress={() => centrerSur(l)} accessibilityRole="button">
+              <CutFrame
+                accent={selection === l.contactId ? colors.cyan : colors.line}
+                corners={['tl', 'br']}
+                style={[styles.card, { width: CARD_WIDTH }]}
+              >
+                <View style={styles.cardInner}>
+                  <View style={[styles.avatar, { borderColor: l.verified ? colors.cyan : colors.warn }]}>
+                    <Text style={styles.avatarText}>{initiales(l.displayName)}</Text>
                   </View>
-                  <Pressable
-                    onPress={() => onStopSharing(o.contactId)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Arreter le partage avec ${o.displayName}`}
-                    style={styles.stopButton}
-                  >
-                    <Text style={styles.stopLabel}>ARRETER</Text>
-                  </Pressable>
-                </View>
-              </CutFrame>
-            ))}
-          </>
-        ) : null}
-
-        {locations.length > 0 ? (
-          <>
-            <Text style={styles.sectionLabel}>POSITIONS RECUES</Text>
-            {locations.map((l) => (
-              <CutFrame key={l.contactId} accent={colors.line} corners={['tl']} style={styles.row}>
-                <View style={styles.rowInner}>
-                  <View style={styles.rowText}>
-                    <Text style={styles.name}>{l.displayName}</Text>
-                    <Text style={styles.meta}>
-                      {ageLisible(l.measuredAt)}
-                      {l.accuracyM ? ` · a ${Math.round(l.accuracyM)} m pres` : ''}
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardName} numberOfLines={1}>
+                      {l.displayName}
                     </Text>
-                    <StatusBadge
-                      label={l.verified ? 'contact verifie' : 'non verifie'}
-                      color={l.verified ? colors.cyan : colors.warn}
-                      active={l.verified}
-                    />
+                    <Text style={styles.cardMeta}>
+                      {d !== null ? `a ${distanceLisible(d)}` : 'distance inconnue'} ·{' '}
+                      {ageLisible(l.measuredAt)}
+                    </Text>
+                    {l.accuracyM && l.accuracyM > 100 ? (
+                      <Text style={styles.cardWarn}>position approximative</Text>
+                    ) : null}
+                    {!l.verified ? (
+                      <StatusBadge label="non verifie" color={colors.warn} active={false} />
+                    ) : null}
                   </View>
+                </View>
+                <View style={styles.cardActions}>
+                  {onOpenChat ? (
+                    <Pressable
+                      onPress={() => onOpenChat(l.contactId)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ecrire a ${l.displayName}`}
+                      style={styles.cardAction}
+                    >
+                      <Text style={styles.cardActionText}>ECRIRE</Text>
+                    </Pressable>
+                  ) : null}
                   <Pressable
                     onPress={() => onForget(l.contactId)}
                     accessibilityRole="button"
                     accessibilityLabel={`Oublier la position de ${l.displayName}`}
-                    style={styles.stopButton}
+                    style={styles.cardAction}
                   >
-                    <Text style={styles.forgetLabel}>OUBLIER</Text>
+                    <Text style={styles.cardActionDim}>OUBLIER</Text>
                   </Pressable>
                 </View>
               </CutFrame>
-            ))}
-          </>
-        ) : null}
-
-        <Text style={styles.note}>
-          Les positions sont chiffrees comme tes messages : le serveur relais
-          ne peut pas les lire. Aucun historique n'est conserve — seule la
-          derniere position de chacun.
-        </Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -195,20 +257,79 @@ export function MapScreen({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.void },
-  map: { height: '52%' },
-  empty: { height: '40%', justifyContent: 'center', alignItems: 'center', gap: space.md, padding: space.xl },
-  emptyTitle: { ...type.title, color: colors.textDim, textAlign: 'center' },
+  emptyRoot: {
+    flex: 1,
+    backgroundColor: colors.void,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.xl,
+  },
+  emptyTitle: { ...type.title, color: colors.textDim },
   emptyBody: { ...type.body, color: colors.textFaint, textAlign: 'center' },
-  panel: { flex: 1 },
-  panelContent: { padding: space.lg, gap: space.sm },
-  sectionLabel: { ...type.label, color: colors.textDim, marginTop: space.sm },
-  row: { marginBottom: space.xs },
-  rowInner: { flexDirection: 'row', alignItems: 'center', padding: space.md, gap: space.md },
-  rowText: { flex: 1, gap: 2 },
-  name: { ...type.title, fontSize: 18, color: colors.text },
-  meta: { ...type.dataSmall, color: colors.textDim },
-  stopButton: { paddingVertical: space.sm, paddingHorizontal: space.md },
-  stopLabel: { ...type.label, fontSize: 11, color: colors.ember },
-  forgetLabel: { ...type.label, fontSize: 11, color: colors.textDim },
-  note: { ...type.meta, color: colors.textFaint, lineHeight: 16, marginTop: space.md },
+  emptyNote: { ...type.meta, color: colors.textFaint, textAlign: 'center', marginTop: space.lg },
+
+  pin: {
+    width: 42,
+    height: 42,
+    borderRadius: 4,
+    borderWidth: 2,
+    backgroundColor: colors.panel,
+    justifyContent: 'center',
+    alignItems: 'center',
+    transform: [{ rotate: '45deg' }],
+  },
+  pinSelected: { backgroundColor: colors.panelRaised, borderWidth: 3 },
+  pinText: { ...type.label, fontSize: 13, color: colors.text, transform: [{ rotate: '-45deg' }] },
+
+  topBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(16,16,24,0.94)',
+    paddingHorizontal: space.lg,
+    paddingBottom: space.sm,
+    gap: space.xs,
+  },
+  bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  bannerRight: { ...type.label, fontSize: 10, color: colors.ember },
+
+  allButton: {
+    position: 'absolute',
+    right: space.lg,
+    backgroundColor: 'rgba(16,16,24,0.94)',
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+  },
+  allButtonText: { ...type.label, fontSize: 10, color: colors.text },
+
+  cards: { position: 'absolute', left: 0, right: 0, maxHeight: 150 },
+  cardsContent: { paddingHorizontal: space.lg, gap: space.sm },
+  card: { marginRight: space.sm },
+  cardInner: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderWidth: 2,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.panelRaised,
+  },
+  avatarText: { ...type.label, fontSize: 15, color: colors.text },
+  cardText: { flex: 1, gap: 2 },
+  cardName: { ...type.title, fontSize: 19, color: colors.text },
+  cardMeta: { ...type.dataSmall, color: colors.textDim },
+  cardWarn: { ...type.meta, color: colors.warn },
+  cardActions: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  cardAction: { flex: 1, paddingVertical: space.sm, alignItems: 'center' },
+  cardActionText: { ...type.label, fontSize: 10, color: colors.cyan },
+  cardActionDim: { ...type.label, fontSize: 10, color: colors.textFaint },
 });

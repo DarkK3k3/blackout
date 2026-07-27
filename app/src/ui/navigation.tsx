@@ -17,6 +17,7 @@ import { SettingsScreen, type TestState } from './screens/SettingsScreen';
 import { MapScreen, type SharedLocation, type OutgoingShare } from './screens/MapScreen';
 import * as Location from 'expo-location';
 import { LazyQrScanner } from './components/LazyQrScanner';
+import { preparerNotifications, notifierMessage, effacerBadge } from './notifications';
 import { colors, fonts, space, type } from './theme/tokens';
 import { RELAY_URL, MY_DISPLAY_NAME } from '../config';
 
@@ -74,8 +75,16 @@ export function BlackoutApp() {
         setStore(store);
         instance = new Blackout(store, nativeSignalBridge, settings.relayUrl, settings.displayName);
         await instance.init();
+        await preparerNotifications();
         await instance.startListening(
-          () => setTick((t) => t + 1),
+          (conversationId) => {
+            setTick((t) => t + 1);
+            // On annonce QUI ecrit, jamais ce qui est ecrit.
+            void instance
+              ?.listChats()
+              .then((chats) => chats.find((c) => c.id === conversationId))
+              .then((chat) => notifierMessage(chat?.title ?? 'Nouveau contact', conversationId));
+          },
           (status) => setRelayConnected(status === 'connected'),
         );
         setApp(instance);
@@ -117,10 +126,7 @@ export function BlackoutApp() {
           <Stack.Screen name="Chats" options={{ headerShown: false }}>
             {(props) => <ChatsContainer {...props} relayConnected={relayConnected} refreshKey={tick} />}
           </Stack.Screen>
-          <Stack.Screen
-            name="Conversation"
-            options={({ route }) => ({ title: route.params.title })}
-          >
+          <Stack.Screen name="Conversation" options={{ headerShown: false }}>
             {(props) => <ConversationContainer {...props} refreshKey={tick} />}
           </Stack.Screen>
           <Stack.Screen name="Verification" options={{ title: 'VERIFICATION' }}>
@@ -203,11 +209,12 @@ function ChatsContainer({ navigation, relayConnected, refreshKey }: any) {
  * limite technique — un partage de position qui continue quand on a
  * ferme l'app est exactement ce qu'on ne veut pas ici.
  */
-function MapContainer({ refreshKey }: any) {
+function MapContainer({ navigation, refreshKey }: any) {
   const app = useBlackout();
   const [locations, setLocations] = React.useState<SharedLocation[]>([]);
   const [outgoing, setOutgoing] = React.useState<OutgoingShare[]>([]);
   const [granted, setGranted] = React.useState(false);
+  const [myPosition, setMyPosition] = React.useState<{ latitude: number; longitude: number } | null>(null);
 
   const reload = React.useCallback(async () => {
     const [recues, partages, contacts] = await Promise.all([
@@ -240,8 +247,18 @@ function MapContainer({ refreshKey }: any) {
   }, [reload, refreshKey]);
 
   React.useEffect(() => {
-    void Location.getForegroundPermissionsAsync().then((p) => setGranted(p.granted));
-  }, []);
+    void Location.getForegroundPermissionsAsync().then(async (p) => {
+      setGranted(p.granted);
+      if (!p.granted) return;
+      try {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setMyPosition({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      } catch {
+        // Sans ma position, les distances ne s'affichent pas : ce n'est
+        // pas bloquant, la carte reste utilisable.
+      }
+    });
+  }, [granted]);
 
   // Diffusion periodique tant qu'un partage est ouvert.
   React.useEffect(() => {
@@ -275,6 +292,7 @@ function MapContainer({ refreshKey }: any) {
     <MapScreen
       locations={locations}
       outgoing={outgoing}
+      myPosition={myPosition}
       permissionGranted={granted}
       onRequestPermission={() => {
         void Location.requestForegroundPermissionsAsync().then((p) => setGranted(p.granted));
@@ -284,6 +302,10 @@ function MapContainer({ refreshKey }: any) {
       }}
       onForget={(contactId) => {
         void app.forgetLocation(contactId).then(reload);
+      }}
+      onOpenChat={(contactId) => {
+        const nom = locations.find((l) => l.contactId === contactId)?.displayName ?? 'Conversation';
+        navigation.navigate('Conversation', { contactId, title: nom });
       }}
     />
   );
@@ -379,6 +401,7 @@ function ConversationContainer({ navigation, route, refreshKey }: any) {
           .catch((e) => Alert.alert('Envoi impossible', String(e?.message ?? e)));
       }}
       onOpenVerification={() => navigation.navigate('Verification', { contactId, title })}
+      onBack={() => navigation.goBack()}
       sharingUntil={sharingUntil}
       onShareLocationOnce={() => {
         void envoyerPosition(app, contactId, false).then(reload).catch(prevenir);

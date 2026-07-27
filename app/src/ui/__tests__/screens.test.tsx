@@ -10,6 +10,19 @@ import { ConversationScreen } from '../screens/ConversationScreen';
 import { VerificationScreen } from '../screens/VerificationScreen';
 import { AddContactScreen } from '../screens/AddContactScreen';
 import { GlitchText } from '../components/Glitch';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+// Marges d'un iPhone a Dynamic Island : c'est le cas qui posait
+// probleme (titre masque), donc celui qu'on veut voir dans les tests.
+const METRIQUES = {
+  frame: { x: 0, y: 0, width: 393, height: 852 },
+  insets: { top: 59, left: 0, right: 0, bottom: 34 },
+};
+
+/** Rend un ecran dans le contexte des zones de securite. */
+function dansEcran(node: React.ReactElement) {
+  return <SafeAreaProvider initialMetrics={METRIQUES}>{node}</SafeAreaProvider>;
+}
 
 /** Concatene tout le texte rendu, pour des assertions simples. */
 function textOf(tree: renderer.ReactTestRenderer): string {
@@ -29,7 +42,9 @@ describe('ChatListScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <ChatListScreen chats={chats} relayConnected meshActive={false} onOpenChat={() => {}} onAddContact={() => {}} />,
+        dansEcran(
+          <ChatListScreen chats={chats} relayConnected meshActive={false} onOpenChat={() => {}} onAddContact={() => {}} />,
+        ),
       );
     });
     const text = textOf(tree);
@@ -45,7 +60,9 @@ describe('ChatListScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <ChatListScreen chats={[]} relayConnected={false} meshActive onOpenChat={() => {}} onAddContact={() => {}} />,
+        dansEcran(
+          <ChatListScreen chats={[]} relayConnected={false} meshActive onOpenChat={() => {}} onAddContact={() => {}} />,
+        ),
       );
     });
     expect(textOf(tree)).toContain('HORS LIGNE');
@@ -56,7 +73,9 @@ describe('ChatListScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <ChatListScreen chats={[]} relayConnected meshActive={false} onOpenChat={() => {}} onAddContact={onAddContact} />,
+        dansEcran(
+          <ChatListScreen chats={[]} relayConnected meshActive={false} onOpenChat={() => {}} onAddContact={onAddContact} />,
+        ),
       );
     });
     const button = tree.root.findAll(
@@ -77,13 +96,15 @@ describe('ConversationScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <ConversationScreen
-          title="Bob"
-          verified
-          messages={messages}
-          onSend={() => {}}
-          onOpenVerification={() => {}}
-        />,
+        dansEcran(
+          <ConversationScreen
+            title="Bob"
+            verified
+            messages={messages}
+            onSend={() => {}}
+            onOpenVerification={() => {}}
+          />,
+        ),
       );
     });
     const text = textOf(tree);
@@ -97,7 +118,9 @@ describe('ConversationScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <ConversationScreen title="Bob" verified messages={[]} onSend={onSend} onOpenVerification={() => {}} />,
+        dansEcran(
+          <ConversationScreen title="Bob" verified messages={[]} onSend={onSend} onOpenVerification={() => {}} />,
+        ),
       );
     });
     const input = tree.root.findAll((n) => n.props.accessibilityLabel === 'Zone de saisie du message')[0];
@@ -113,7 +136,9 @@ describe('ConversationScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <ConversationScreen title="Bob" verified messages={[]} onSend={onSend} onOpenVerification={() => {}} />,
+        dansEcran(
+          <ConversationScreen title="Bob" verified messages={[]} onSend={onSend} onOpenVerification={() => {}} />,
+        ),
       );
     });
     const input = tree.root.findAll((n) => n.props.accessibilityLabel === 'Zone de saisie du message')[0];
@@ -152,14 +177,16 @@ describe('VerificationScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <VerificationScreen
-          contactName="Bob"
-          code="9821-6195"
-          yearMonth="2026-07"
-          fingerprintHex="ec2a05c6be7036dd390c149d67c5cb5c"
-          verified={false}
-          onMarkVerified={() => {}}
-        />,
+        dansEcran(
+          <VerificationScreen
+            contactName="Bob"
+            code="9821-6195"
+            yearMonth="2026-07"
+            fingerprintHex="ec2a05c6be7036dd390c149d67c5cb5c"
+            verified={false}
+            onMarkVerified={() => {}}
+          />,
+        ),
       );
     });
     const text = textOf(tree);
@@ -174,14 +201,16 @@ describe('VerificationScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <VerificationScreen
-          contactName="Bob"
-          code="1111-2222"
-          yearMonth="2026-07"
-          fingerprintHex="abcd1234"
-          verified={false}
-          onMarkVerified={onMarkVerified}
-        />,
+        dansEcran(
+          <VerificationScreen
+            contactName="Bob"
+            code="1111-2222"
+            yearMonth="2026-07"
+            fingerprintHex="abcd1234"
+            verified={false}
+            onMarkVerified={onMarkVerified}
+          />,
+        ),
       );
     });
     const cta = tree.root.findAll((n) => n.props.accessibilityLabel === 'Les codes correspondent')[0];
@@ -211,12 +240,14 @@ describe('AddContactScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <AddContactScreen
-          invitePayload="blackout:1:https://x|abc|DEF" spokenCode="ABC-DEF"
-          myShortFingerprint="AB12 CD34"
-          Scanner={Scanner}
-          onScanned={() => {}} onSubmitCode={() => {}}
-        />,
+        dansEcran(
+          <AddContactScreen
+            invitePayload="blackout:1:https://x|abc|DEF" spokenCode="ABC-DEF"
+            myShortFingerprint="AB12 CD34"
+            Scanner={Scanner}
+            onScanned={() => {}} onSubmitCode={() => {}}
+          />,
+        ),
       );
     });
     expect(textOf(tree)).toContain('AB12 CD34');
@@ -232,12 +263,14 @@ describe('AddContactScreen', () => {
     let tree!: renderer.ReactTestRenderer;
     act(() => {
       tree = renderer.create(
-        <AddContactScreen
-          invitePayload="blackout:1:https://x|abc|DEF" spokenCode="ABC-DEF"
-          myShortFingerprint="AB12"
-          Scanner={Scanner}
-          onScanned={onScanned} onSubmitCode={() => {}}
-        />,
+        dansEcran(
+          <AddContactScreen
+            invitePayload="blackout:1:https://x|abc|DEF" spokenCode="ABC-DEF"
+            myShortFingerprint="AB12"
+            Scanner={Scanner}
+            onScanned={onScanned} onSubmitCode={() => {}}
+          />,
+        ),
       );
     });
     // findAll remonte aussi les vues hotes : on ne garde que les noeuds
