@@ -119,6 +119,29 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE one_time_prekeys ADD COLUMN reserved INTEGER NOT NULL DEFAULT 0;
   `,
+  // v5 — partage de position.
+  //
+  // On ne garde QUE la derniere position connue par contact, jamais un
+  // historique : un historique de deplacements est la donnee la plus
+  // sensible qu'une app puisse detenir, et personne n'en a besoin ici.
+  //
+  // `sharing_until` est l'echeance de MON partage vers ce contact. Le
+  // partage s'arrete tout seul : il n'existe pas de mode « pour
+  // toujours », par choix.
+  `
+  CREATE TABLE locations (
+    contact_id TEXT PRIMARY KEY,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    accuracy_m REAL,
+    measured_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE location_sharing (
+    contact_id TEXT PRIMARY KEY,
+    sharing_until INTEGER NOT NULL
+  );
+  `,
 ];
 
 /** Applique les migrations manquantes (user_version de SQLite). */

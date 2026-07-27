@@ -37,7 +37,21 @@ export interface ConversationScreenProps {
   onSend: (text: string) => void;
   onSendPhoto?: () => void;
   onOpenVerification: () => void;
+  /** Envoi ponctuel : une position, maintenant. */
+  onShareLocationOnce?: () => void;
+  /** Ouvre un partage continu pour la duree choisie, en minutes. */
+  onShareLocationFor?: (minutes: number) => void;
+  onStopSharingLocation?: () => void;
+  /** Echeance du partage en cours vers ce contact, si actif. */
+  sharingUntil?: number | null;
 }
+
+/** Durees proposees. Aucune option « toujours » : c'est volontaire. */
+const DUREES = [
+  { label: '15 MIN', minutes: 15 },
+  { label: '1 H', minutes: 60 },
+  { label: '8 H', minutes: 480 },
+];
 
 const STATUS_MARK: Record<ChatMessage['status'], string> = {
   pending: '···',
@@ -53,8 +67,14 @@ export function ConversationScreen({
   onSend,
   onSendPhoto,
   onOpenVerification,
+  onShareLocationOnce,
+  onShareLocationFor,
+  onStopSharingLocation,
+  sharingUntil,
 }: ConversationScreenProps) {
   const [draft, setDraft] = React.useState('');
+  const [locationPanel, setLocationPanel] = React.useState(false);
+  const partageActif = Boolean(sharingUntil && sharingUntil > Date.now());
 
   const send = () => {
     const text = draft.trim();
@@ -121,6 +141,52 @@ export function ConversationScreen({
         )}
       />
 
+      {partageActif ? (
+        // Un partage ouvert doit rester VISIBLE : c'est l'oubli qui est
+        // dangereux, pas le partage lui-meme.
+        <Pressable onPress={onStopSharingLocation} accessibilityRole="button" style={styles.sharingBanner}>
+          <StatusBadge label="tu partages ta position" color={colors.ember} />
+          <Text style={styles.sharingStop}>ARRETER</Text>
+        </Pressable>
+      ) : null}
+
+      {locationPanel ? (
+        <View style={styles.locationPanel}>
+          <Text style={styles.locationLabel}>PARTAGER MA POSITION</Text>
+          <View style={styles.durationRow}>
+            <Pressable
+              onPress={() => {
+                onShareLocationOnce?.();
+                setLocationPanel(false);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Envoyer ma position une seule fois"
+              style={styles.durationButton}
+            >
+              <Text style={styles.durationText}>UNE FOIS</Text>
+            </Pressable>
+            {DUREES.map((d) => (
+              <Pressable
+                key={d.minutes}
+                onPress={() => {
+                  onShareLocationFor?.(d.minutes);
+                  setLocationPanel(false);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Partager pendant ${d.label}`}
+                style={styles.durationButton}
+              >
+                <Text style={styles.durationText}>{d.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.locationNote}>
+            Chiffree comme tes messages. Le partage s'arrete tout seul a
+            l'echeance, et tu peux l'interrompre a tout moment.
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.composer}>
         {onSendPhoto ? (
           <Pressable
@@ -141,6 +207,16 @@ export function ConversationScreen({
           multiline
           accessibilityLabel="Zone de saisie du message"
         />
+        {onShareLocationOnce || onShareLocationFor ? (
+          <Pressable
+            onPress={() => setLocationPanel((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel="Partager ma position"
+            style={styles.photoButton}
+          >
+            <Text style={[styles.photoGlyph, partageActif && { color: colors.ember }]}>◉</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={send}
           disabled={!draft.trim()}
@@ -200,4 +276,32 @@ const styles = StyleSheet.create({
   },
   sendButton: { backgroundColor: colors.ember, paddingHorizontal: space.lg, paddingVertical: space.md },
   sendLabel: { color: colors.void, fontSize: 16, fontWeight: '900' },
+  sharingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+    backgroundColor: colors.panelRaised,
+    borderTopWidth: 1,
+    borderTopColor: colors.ember,
+  },
+  sharingStop: { ...type.label, fontSize: 11, color: colors.ember },
+  locationPanel: {
+    padding: space.md,
+    gap: space.sm,
+    backgroundColor: colors.panel,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  locationLabel: { ...type.label, color: colors.textDim },
+  durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  durationButton: {
+    borderWidth: 1,
+    borderColor: colors.cyan,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+  },
+  durationText: { ...type.label, fontSize: 11, color: colors.cyan },
+  locationNote: { ...type.meta, color: colors.textFaint, lineHeight: 15 },
 });

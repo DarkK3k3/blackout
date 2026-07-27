@@ -27,6 +27,7 @@ export interface ChatListScreenProps {
   onOpenChat: (id: string) => void;
   onAddContact: () => void;
   onOpenSettings?: () => void;
+  onOpenMap?: () => void;
 }
 
 function timeLabel(ts: number | null): string {
@@ -46,6 +47,7 @@ export function ChatListScreen({
   onOpenChat,
   onAddContact,
   onOpenSettings,
+  onOpenMap,
 }: ChatListScreenProps) {
   return (
     <View style={styles.root}>
@@ -80,6 +82,9 @@ export function ChatListScreen({
               active={relayConnected}
             />
           </View>
+          <Pressable onPress={onOpenMap} accessibilityRole="button" accessibilityLabel="Voir les positions" style={styles.statusItem}>
+            <StatusBadge label="positions" color={colors.magenta} />
+          </Pressable>
           <View style={styles.statusItem}>
             <IconMesh size={15} color={meshActive ? colors.magenta : colors.textFaint} />
             <StatusBadge label="Mesh BLE" color={colors.magenta} active={meshActive} />

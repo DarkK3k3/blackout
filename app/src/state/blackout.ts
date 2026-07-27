@@ -5,7 +5,7 @@
 // ciphertext. Elle demande "envoie ce texte a ce contact" et recoit
 // des messages en clair, deja dechiffres et deja persistes.
 
-import type { BlackoutStore } from '../storage/store';
+import type { BlackoutStore, LocationFix } from '../storage/store';
 import { SessionManager, type InvitePayload, type Envelope } from '../crypto/sessionManager';
 import type { SignalBridge } from '../crypto/signalBridge.types';
 import { RelayClient } from '../transport/relayClient';
@@ -31,6 +31,21 @@ export interface InviteQr extends InvitePayload {
 interface MessagePayload {
   text?: string;
   photo?: string; // data URI, chiffree comme le reste
+  /**
+   * Position, chiffree exactement comme un message : le relais ne voit
+   * qu'un blob. Aucune nouvelle cryptographie n'est introduite ici —
+   * c'est la meme session libsignal que le texte.
+   */
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracyM?: number;
+    measuredAt: number;
+    /** Echeance du partage en cours, pour que le destinataire sache quand ca s'arrete. */
+    sharingUntil?: number;
+    /** true = l'expediteur vient d'arreter son partage. */
+    stopped?: boolean;
+  };
   /** Present uniquement sur le tout premier message d'une relation. */
   hello?: {
     address: string;
@@ -278,6 +293,22 @@ export class Blackout {
       });
     }
 
+    if (plaintext.location) {
+      const loc = plaintext.location;
+      if (loc.stopped) {
+        // Le contact a ferme son partage : on oublie sa position au
+        // lieu de laisser un point perime sur la carte.
+        await this.store.forgetLocation(contactId);
+      } else {
+        await this.store.saveLocation(contactId, {
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          accuracyM: loc.accuracyM,
+          measuredAt: loc.measuredAt,
+        });
+      }
+    }
+
     if (plaintext.text) {
       await this.store.saveMessage({
         id: newId(),
@@ -334,6 +365,122 @@ export class Blackout {
   stopListening(): void {
     this.stopSubscription?.();
     this.stopSubscription = null;
+  }
+
+  // --------------------------------------------------------- localisation
+  //
+  // Principes, volontairement restrictifs :
+  //  - jamais de partage silencieux : chaque envoi est declenche par
+  //    l'utilisateur ou par un partage qu'il a explicitement ouvert ;
+  //  - jamais de partage illimite : toute session a une echeance, et
+  //    elle s'arrete d'elle-meme ;
+  //  - jamais d'historique : seule la derniere position est gardee ;
+  //  - la position est chiffree comme un message ordinaire — le relais
+  //    n'en voit rien. C'est toute la difference avec les applications
+  //    de localisation familiale grand public, ou le serveur voit tout.
+
+  /** Duree maximale d'un partage. Au-dela, il faut le relancer sciemment. */
+  static readonly MAX_SHARING_MINUTES = 8 * 60;
+
+  /** Envoi ponctuel : « voila ou je suis, maintenant ». */
+  async sendLocationOnce(contactId: string, fix: Omit<LocationFix, 'measuredAt'> & { measuredAt?: number }): Promise<void> {
+    await this.send(contactId, {
+      location: {
+        latitude: fix.latitude,
+        longitude: fix.longitude,
+        accuracyM: fix.accuracyM,
+        measuredAt: fix.measuredAt ?? Date.now(),
+      },
+    });
+  }
+
+  /**
+   * Ouvre un partage continu, borne dans le temps. Retourne l'echeance.
+   * Refuse toute duree nulle, negative ou superieure au maximum.
+   */
+  async startSharingLocation(contactId: string, minutes: number): Promise<number> {
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      throw new Error('duree de partage invalide');
+    }
+    const capped = Math.min(minutes, Blackout.MAX_SHARING_MINUTES);
+    const until = Date.now() + capped * 60_000;
+    await this.store.setSharingUntil(contactId, until);
+    return until;
+  }
+
+  /** Ferme le partage et previent le contact, pour que son ecran soit juste. */
+  async stopSharingLocation(contactId: string): Promise<void> {
+    await this.store.stopSharing(contactId);
+    await this.send(contactId, {
+      location: { latitude: 0, longitude: 0, measuredAt: Date.now(), stopped: true },
+    }).catch(() => {
+      // Le contact sera de toute facon fixe par l'echeance : ne pas
+      // faire echouer l'arret local si le reseau est coupe.
+    });
+  }
+
+  /** Contacts vers qui un partage est encore ouvert. */
+  async activeSharing(now = Date.now()): Promise<{ contactId: string; until: number }[]> {
+    return this.store.listActiveSharing(now);
+  }
+
+  /**
+   * Diffuse une position a tous les partages encore ouverts. Appelee
+   * periodiquement par l'app tant qu'au moins un partage est actif.
+   * Les partages expires sont ignores — donc s'arretent d'eux-memes.
+   */
+  async broadcastLocation(fix: Omit<LocationFix, 'measuredAt'> & { measuredAt?: number }): Promise<number> {
+    const actifs = await this.store.listActiveSharing();
+    let envoyes = 0;
+    for (const { contactId, until } of actifs) {
+      try {
+        await this.send(contactId, {
+          location: {
+            latitude: fix.latitude,
+            longitude: fix.longitude,
+            accuracyM: fix.accuracyM,
+            measuredAt: fix.measuredAt ?? Date.now(),
+            sharingUntil: until,
+          },
+        });
+        envoyes++;
+      } catch {
+        // Un contact injoignable ne doit pas bloquer les autres.
+      }
+    }
+    return envoyes;
+  }
+
+  /** Dernieres positions connues des contacts, pour la carte. */
+  async knownLocations(): Promise<
+    { contactId: string; displayName: string; verified: boolean; fix: LocationFix }[]
+  > {
+    const [positions, contacts] = await Promise.all([
+      this.store.listLocations(),
+      this.store.listContacts(),
+    ]);
+    return positions.flatMap((p) => {
+      const contact = contacts.find((c) => c.id === p.contactId);
+      if (!contact) return [];
+      return [
+        {
+          contactId: p.contactId,
+          displayName: contact.displayName,
+          verified: contact.verified,
+          fix: {
+            latitude: p.latitude,
+            longitude: p.longitude,
+            accuracyM: p.accuracyM,
+            measuredAt: p.measuredAt,
+          },
+        },
+      ];
+    });
+  }
+
+  /** Oublie la derniere position connue d'un contact. */
+  async forgetLocation(contactId: string): Promise<void> {
+    await this.store.forgetLocation(contactId);
   }
 
   // ------------------------------------------------------------ lectures

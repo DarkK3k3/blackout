@@ -14,6 +14,8 @@ import { ConversationScreen, type ChatMessage } from './screens/ConversationScre
 import { VerificationScreen } from './screens/VerificationScreen';
 import { AddContactScreen } from './screens/AddContactScreen';
 import { SettingsScreen, type TestState } from './screens/SettingsScreen';
+import { MapScreen, type SharedLocation, type OutgoingShare } from './screens/MapScreen';
+import * as Location from 'expo-location';
 import { LazyQrScanner } from './components/LazyQrScanner';
 import { colors, fonts, space, type } from './theme/tokens';
 import { RELAY_URL, MY_DISPLAY_NAME } from '../config';
@@ -24,6 +26,7 @@ type RootStackParamList = {
   Verification: { contactId: string; title: string };
   AddContact: undefined;
   Settings: undefined;
+  Map: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -129,6 +132,9 @@ export function BlackoutApp() {
           <Stack.Screen name="Settings" options={{ title: 'REGLAGES' }}>
             {(props) => <SettingsContainer {...props} store={store} />}
           </Stack.Screen>
+          <Stack.Screen name="Map" options={{ title: 'POSITIONS' }}>
+            {(props) => <MapContainer {...props} refreshKey={tick} />}
+          </Stack.Screen>
         </Stack.Navigator>
       </NavigationContainer>
     </BlackoutContext.Provider>
@@ -136,6 +142,31 @@ export function BlackoutApp() {
 }
 
 // ------------------------------------------------------------ conteneurs
+
+/**
+ * Releve la position et l'envoie. `diffusion` distingue l'envoi
+ * ponctuel du premier point d'un partage continu.
+ *
+ * L'autorisation est demandee au moment ou on en a besoin, pas au
+ * demarrage de l'app : on ne reclame un acces au GPS que si tu as
+ * effectivement choisi de partager quelque chose.
+ */
+async function envoyerPosition(app: Blackout, contactId: string, diffusion: boolean): Promise<void> {
+  const perm = await Location.requestForegroundPermissionsAsync();
+  if (!perm.granted) throw new Error("acces a la localisation refuse");
+  const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  const fix = {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    accuracyM: pos.coords.accuracy ?? undefined,
+  };
+  if (diffusion) await app.broadcastLocation(fix);
+  else await app.sendLocationOnce(contactId, fix);
+}
+
+function prevenir(e: unknown): void {
+  Alert.alert('Position indisponible', e instanceof Error ? e.message : String(e));
+}
 
 function ChatsContainer({ navigation, relayConnected, refreshKey }: any) {
   const app = useBlackout();
@@ -158,6 +189,102 @@ function ChatsContainer({ navigation, relayConnected, refreshKey }: any) {
       }}
       onAddContact={() => navigation.navigate('AddContact')}
       onOpenSettings={() => navigation.navigate('Settings')}
+      onOpenMap={() => navigation.navigate('Map')}
+    />
+  );
+}
+
+/**
+ * Conteneur de la carte : c'est ici que le GPS est allume.
+ *
+ * Il ne tourne QUE si au moins un partage est ouvert, et il s'eteint
+ * des que le dernier expire. Il n'y a pas de suivi en arriere-plan :
+ * l'app doit etre ouverte pour emettre. C'est un choix, pas une
+ * limite technique — un partage de position qui continue quand on a
+ * ferme l'app est exactement ce qu'on ne veut pas ici.
+ */
+function MapContainer({ refreshKey }: any) {
+  const app = useBlackout();
+  const [locations, setLocations] = React.useState<SharedLocation[]>([]);
+  const [outgoing, setOutgoing] = React.useState<OutgoingShare[]>([]);
+  const [granted, setGranted] = React.useState(false);
+
+  const reload = React.useCallback(async () => {
+    const [recues, partages, contacts] = await Promise.all([
+      app.knownLocations(),
+      app.activeSharing(),
+      app.listChats(),
+    ]);
+    setLocations(
+      recues.map((l) => ({
+        contactId: l.contactId,
+        displayName: l.displayName,
+        verified: l.verified,
+        latitude: l.fix.latitude,
+        longitude: l.fix.longitude,
+        accuracyM: l.fix.accuracyM,
+        measuredAt: l.fix.measuredAt,
+      })),
+    );
+    setOutgoing(
+      partages.map((p) => ({
+        contactId: p.contactId,
+        displayName: contacts.find((c) => c.id === p.contactId)?.title ?? 'Contact',
+        until: p.until,
+      })),
+    );
+  }, [app]);
+
+  React.useEffect(() => {
+    void reload();
+  }, [reload, refreshKey]);
+
+  React.useEffect(() => {
+    void Location.getForegroundPermissionsAsync().then((p) => setGranted(p.granted));
+  }, []);
+
+  // Diffusion periodique tant qu'un partage est ouvert.
+  React.useEffect(() => {
+    if (outgoing.length === 0) return;
+    let arrete = false;
+    const envoyer = async () => {
+      try {
+        const { granted: ok } = await Location.getForegroundPermissionsAsync();
+        if (!ok || arrete) return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (arrete) return;
+        await app.broadcastLocation({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracyM: pos.coords.accuracy ?? undefined,
+        });
+        await reload();
+      } catch {
+        // GPS indisponible a cet instant : on reessaiera au tour suivant.
+      }
+    };
+    void envoyer();
+    const id = setInterval(envoyer, 60_000);
+    return () => {
+      arrete = true;
+      clearInterval(id);
+    };
+  }, [app, outgoing.length, reload]);
+
+  return (
+    <MapScreen
+      locations={locations}
+      outgoing={outgoing}
+      permissionGranted={granted}
+      onRequestPermission={() => {
+        void Location.requestForegroundPermissionsAsync().then((p) => setGranted(p.granted));
+      }}
+      onStopSharing={(contactId) => {
+        void app.stopSharingLocation(contactId).then(reload);
+      }}
+      onForget={(contactId) => {
+        void app.forgetLocation(contactId).then(reload);
+      }}
     />
   );
 }
@@ -216,6 +343,7 @@ function ConversationContainer({ navigation, route, refreshKey }: any) {
   const { contactId, title } = route.params;
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [verified, setVerified] = React.useState(false);
+  const [sharingUntil, setSharingUntil] = React.useState<number | null>(null);
   const seen = React.useRef<Set<string>>(new Set());
 
   const reload = React.useCallback(async () => {
@@ -231,6 +359,8 @@ function ConversationContainer({ navigation, route, refreshKey }: any) {
     );
     const v = await app.verificationFor(contactId).catch(() => null);
     if (v) setVerified(v.verified);
+    const partages = await app.activeSharing();
+    setSharingUntil(partages.find((p) => p.contactId === contactId)?.until ?? null);
   }, [app, contactId]);
 
   React.useEffect(() => {
@@ -249,6 +379,20 @@ function ConversationContainer({ navigation, route, refreshKey }: any) {
           .catch((e) => Alert.alert('Envoi impossible', String(e?.message ?? e)));
       }}
       onOpenVerification={() => navigation.navigate('Verification', { contactId, title })}
+      sharingUntil={sharingUntil}
+      onShareLocationOnce={() => {
+        void envoyerPosition(app, contactId, false).then(reload).catch(prevenir);
+      }}
+      onShareLocationFor={(minutes) => {
+        void app
+          .startSharingLocation(contactId, minutes)
+          .then(() => envoyerPosition(app, contactId, true))
+          .then(reload)
+          .catch(prevenir);
+      }}
+      onStopSharingLocation={() => {
+        void app.stopSharingLocation(contactId).then(reload).catch(prevenir);
+      }}
     />
   );
 }

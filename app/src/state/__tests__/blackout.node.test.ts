@@ -273,3 +273,106 @@ test('les messages arrivent SANS redemarrer l app apres un ajout de contact', as
   alice.app.stopListening();
   bob.app.stopListening();
 }, 60_000);
+
+describe('partage de position (chiffre de bout en bout)', () => {
+  async function paire() {
+    const bob = await makeApp('Bob');
+    const alice = await makeApp('Alice');
+    await bob.app.startListening(() => {});
+    await alice.app.startListening(() => {});
+    const invite = await bob.app.createInviteQr();
+    const bobId = await alice.app.acceptInviteQr(invite.encoded);
+    await waitFor(async () => (await bob.app.listChats()).length === 1);
+    const aliceId = (await bob.app.listChats())[0].id;
+    return { bob, alice, bobId, aliceId };
+  }
+
+  const PARIS = { latitude: 48.8566, longitude: 2.3522, accuracyM: 12 };
+
+  it('transmet une position ponctuelle, et le relais n en voit rien', async () => {
+    const { bob, alice, bobId, aliceId } = await paire();
+
+    await alice.app.sendLocationOnce(bobId, PARIS);
+    await waitFor(async () => (await bob.app.knownLocations()).length === 1);
+
+    const vues = await bob.app.knownLocations();
+    expect(vues[0].contactId).toBe(aliceId);
+    expect(vues[0].fix.latitude).toBeCloseTo(PARIS.latitude, 4);
+    expect(vues[0].fix.longitude).toBeCloseTo(PARIS.longitude, 4);
+    expect(vues[0].displayName).toBe('Alice');
+
+    // Le relais ne stocke que du chiffre : les coordonnees ne doivent
+    // apparaitre nulle part en clair dans ce qui transite.
+    const queues = await alice.store.getQueues(bobId);
+    const res = await fetch(`${serverUrl}/v1/queues/${queues!.outQueueId}/messages`, {
+      headers: { authorization: `Bearer ${queues!.outWriteToken}` },
+    });
+    const brut = JSON.stringify(await res.json().catch(() => ({})));
+    expect(brut).not.toContain('48.85');
+    expect(brut).not.toContain('2.35');
+
+    alice.app.stopListening();
+    bob.app.stopListening();
+  }, 60_000);
+
+  it('refuse une duree de partage absurde et plafonne les durees longues', async () => {
+    const { alice, bobId } = await paire();
+
+    await expect(alice.app.startSharingLocation(bobId, 0)).rejects.toThrow(/invalide/);
+    await expect(alice.app.startSharingLocation(bobId, -5)).rejects.toThrow(/invalide/);
+
+    // Une duree deraisonnable est ramenee au plafond : pas de partage
+    // « pour toujours », meme demande explicitement.
+    const until = await alice.app.startSharingLocation(bobId, 60 * 24 * 365);
+    const heures = (until - Date.now()) / 3_600_000;
+    expect(heures).toBeLessThanOrEqual(Blackout.MAX_SHARING_MINUTES / 60 + 0.1);
+
+    alice.app.stopListening();
+  }, 60_000);
+
+  it('un partage expire cesse de diffuser tout seul', async () => {
+    const { alice, bobId } = await paire();
+
+    await alice.app.startSharingLocation(bobId, 30);
+    expect(await alice.app.activeSharing()).toHaveLength(1);
+    expect(await alice.app.broadcastLocation(PARIS)).toBe(1);
+
+    // Vu depuis un instant posterieur a l'echeance, plus rien n'est actif
+    const apresEcheance = Date.now() + 31 * 60_000;
+    expect(await alice.app.activeSharing(apresEcheance)).toHaveLength(0);
+
+    alice.app.stopListening();
+  }, 60_000);
+
+  it('arreter le partage efface la position chez le destinataire', async () => {
+    const { bob, alice, bobId } = await paire();
+
+    await alice.app.startSharingLocation(bobId, 30);
+    await alice.app.broadcastLocation(PARIS);
+    await waitFor(async () => (await bob.app.knownLocations()).length === 1);
+
+    await alice.app.stopSharingLocation(bobId);
+    // Bob ne doit pas garder un point perime sur sa carte
+    await waitFor(async () => (await bob.app.knownLocations()).length === 0);
+    expect(await alice.app.activeSharing()).toHaveLength(0);
+
+    alice.app.stopListening();
+    bob.app.stopListening();
+  }, 60_000);
+
+  it('ne conserve aucun historique : seule la derniere position', async () => {
+    const { bob, alice, bobId } = await paire();
+
+    await alice.app.sendLocationOnce(bobId, PARIS);
+    await waitFor(async () => (await bob.app.knownLocations()).length === 1);
+    await alice.app.sendLocationOnce(bobId, { latitude: 43.2965, longitude: 5.3698 });
+    await waitFor(async () => (await bob.app.knownLocations())[0].fix.latitude < 45);
+
+    const vues = await bob.app.knownLocations();
+    expect(vues).toHaveLength(1); // une seule ligne, pas deux
+    expect(vues[0].fix.latitude).toBeCloseTo(43.2965, 3);
+
+    alice.app.stopListening();
+    bob.app.stopListening();
+  }, 60_000);
+});

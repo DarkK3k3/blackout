@@ -13,7 +13,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Blackout utilise la caméra uniquement pour scanner les QR codes d'ajout de contact et de vérification.",
         "NSPhotoLibraryUsageDescription": "Blackout accède à vos photos uniquement pour en envoyer dans une conversation chiffrée.",
-        "NSBluetoothAlwaysUsageDescription": "Blackout utilise le Bluetooth pour relayer les messages chiffrés entre appareils proches quand internet est indisponible."
+        "NSBluetoothAlwaysUsageDescription": "Blackout utilise le Bluetooth pour relayer les messages chiffrés entre appareils proches quand internet est indisponible.",
+        "NSLocationWhenInUseUsageDescription": "Blackout partage ta position uniquement avec les contacts que tu choisis, de facon chiffree et pour une duree limitee que tu fixes."
       }
     },
     "android": {
@@ -49,6 +50,12 @@
         "expo-image-picker",
         {
           "photosPermission": "Blackout accède à vos photos uniquement pour en envoyer dans une conversation chiffrée."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Blackout partage ta position uniquement avec les contacts que tu choisis, de facon chiffree et pour une duree limitee que tu fixes."
         }
       ]
     ],

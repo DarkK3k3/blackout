@@ -32,6 +32,15 @@ export interface MessageRow {
   status: 'pending' | 'sent' | 'delivered' | 'failed';
 }
 
+/** Un point de position. Jamais historise : seule la derniere vaut. */
+export interface LocationFix {
+  latitude: number;
+  longitude: number;
+  /** Precision en metres telle que rapportee par le GPS. */
+  accuracyM?: number;
+  measuredAt: number;
+}
+
 export interface LocalPreKeyRecords {
   signedPreKeyRecord: string;
   kyberPreKeyRecord: string;
@@ -227,6 +236,53 @@ export class BlackoutStore {
       'INSERT OR REPLACE INTO inboxes (queue_id, read_token, server_url, contact_id) VALUES (?, ?, ?, ?)',
       [q.inQueueId, q.inReadToken, q.serverUrl, contactId],
     );
+  }
+
+  // --- positions ---
+
+  /** Derniere position connue d'un contact. Ecrase la precedente : pas d'historique. */
+  async saveLocation(contactId: string, loc: LocationFix): Promise<void> {
+    await this.db.execute(
+      `INSERT OR REPLACE INTO locations (contact_id, latitude, longitude, accuracy_m, measured_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [contactId, loc.latitude, loc.longitude, loc.accuracyM ?? null, loc.measuredAt],
+    );
+  }
+
+  async listLocations(): Promise<(LocationFix & { contactId: string })[]> {
+    const { rows } = await this.db.execute('SELECT * FROM locations');
+    return rows.map((r) => ({
+      contactId: String(r.contact_id),
+      latitude: Number(r.latitude),
+      longitude: Number(r.longitude),
+      accuracyM: r.accuracy_m === null ? undefined : Number(r.accuracy_m),
+      measuredAt: Number(r.measured_at),
+    }));
+  }
+
+  async forgetLocation(contactId: string): Promise<void> {
+    await this.db.execute('DELETE FROM locations WHERE contact_id = ?', [contactId]);
+  }
+
+  /** Echeance de MON partage vers ce contact (millisecondes epoch). */
+  async setSharingUntil(contactId: string, until: number): Promise<void> {
+    await this.db.execute(
+      'INSERT OR REPLACE INTO location_sharing (contact_id, sharing_until) VALUES (?, ?)',
+      [contactId, until],
+    );
+  }
+
+  async stopSharing(contactId: string): Promise<void> {
+    await this.db.execute('DELETE FROM location_sharing WHERE contact_id = ?', [contactId]);
+  }
+
+  /** Contacts vers qui je partage ENCORE (les echeances passees sont ignorees). */
+  async listActiveSharing(now = Date.now()): Promise<{ contactId: string; until: number }[]> {
+    const { rows } = await this.db.execute(
+      'SELECT contact_id, sharing_until FROM location_sharing WHERE sharing_until > ?',
+      [now],
+    );
+    return rows.map((r) => ({ contactId: String(r.contact_id), until: Number(r.sharing_until) }));
   }
 
   // --- reglages ---
