@@ -15,6 +15,7 @@ import { VerificationScreen } from './screens/VerificationScreen';
 import { AddContactScreen } from './screens/AddContactScreen';
 import { SettingsScreen, type TestState } from './screens/SettingsScreen';
 import { MapScreen, type SharedLocation, type OutgoingShare } from './screens/MapScreen';
+import { suivreMouvements, type SuiviContact } from './screens/mapMath';
 import * as Location from 'expo-location';
 import { LazyQrScanner } from './components/LazyQrScanner';
 import { preparerNotifications, notifierMessage, effacerBadge } from './notifications';
@@ -215,6 +216,10 @@ function MapContainer({ navigation, refreshKey }: any) {
   const [outgoing, setOutgoing] = React.useState<OutgoingShare[]>([]);
   const [granted, setGranted] = React.useState(false);
   const [myPosition, setMyPosition] = React.useState<{ latitude: number; longitude: number } | null>(null);
+  // Suivi du deplacement, en memoire vive uniquement : il disparait
+  // avec l'ecran, et il n'y a donc pas d'historique de positions a
+  // effacer si le telephone est vole.
+  const suivi = React.useRef<Record<string, SuiviContact>>({});
 
   const reload = React.useCallback(async () => {
     const [recues, partages, contacts] = await Promise.all([
@@ -222,6 +227,13 @@ function MapContainer({ navigation, refreshKey }: any) {
       app.activeSharing(),
       app.listChats(),
     ]);
+    // Vitesse et cap sont DEDUITS de deux positions deja recues, sur le
+    // telephone. Rien n'est demande a un service tiers, donc aucune
+    // coordonnee d'ami n'est revelee a qui que ce soit.
+    suivi.current = suivreMouvements(
+      suivi.current,
+      recues.map((l) => ({ contactId: l.contactId, ...l.fix })),
+    );
     setLocations(
       recues.map((l) => ({
         contactId: l.contactId,
@@ -231,6 +243,8 @@ function MapContainer({ navigation, refreshKey }: any) {
         longitude: l.fix.longitude,
         accuracyM: l.fix.accuracyM,
         measuredAt: l.fix.measuredAt,
+        vitesseKmh: suivi.current[l.contactId]?.mouvement.vitesseKmh ?? null,
+        capDeg: suivi.current[l.contactId]?.mouvement.capDeg ?? null,
       })),
     );
     setOutgoing(

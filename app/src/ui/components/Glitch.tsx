@@ -62,8 +62,17 @@ export function GlitchText({ text, duration = 320, disabled = false, style, ...r
   );
 }
 
-export function Scanlines({ opacity = 0.05, style }: { opacity?: number; style?: ViewStyle }) {
-  const lines = Array.from({ length: 60 });
+export function Scanlines({
+  opacity = 0.05,
+  count = 60,
+  style,
+}: {
+  opacity?: number;
+  /** Nombre de lignes : a ajuster a la hauteur reelle a couvrir (4 px par ligne). */
+  count?: number;
+  style?: ViewStyle;
+}) {
+  const lines = Array.from({ length: count });
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
       {lines.map((_, i) => (

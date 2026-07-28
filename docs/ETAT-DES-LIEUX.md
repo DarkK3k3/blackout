@@ -49,22 +49,30 @@ cercles de précision, bandeau « X te voit / ARRETER », bouton « TOUT
 VOIR », bande de cartes-contacts qui glisse (distance à vol d'oiseau,
 ancienneté, ECRIRE / OUBLIER).
 
-Pistes, classées par ce qu'elles coûtent en vie privée — **c'est le
-critère de tri, pas l'effort** :
+**Fait le 2026-07-28**, tout sans la moindre fuite (chaque information
+se calcule sur le téléphone, à partir de positions déjà reçues) :
+- **trafic routier** — bouton TRAFIC, `showsTraffic` sur `MapView` : la
+  couche vient des tuiles de la carte, aucune coordonnée d'ami n'est
+  envoyée pour l'obtenir ;
+- **vitesse, cap et état** (« A PIED », « EN VOITURE »…) déduits de deux
+  relevés successifs, avec deux garde-fous : sous 5 s d'écart le bruit
+  du GPS ferait courir un immobile, au-delà d'un quart d'heure une
+  moyenne ne dit plus rien du présent ;
+- **fraîcheur** (DIRECT / RECENT / ANCIEN / PERIME) et pastille estompée
+  quand la position est périmée — une position vieille de trois heures
+  affichée comme les autres est un mensonge par omission ;
+- **habillage DedSec** : lignes de balayage, équerres de visée aux
+  angles, résolution glitch du nom à chaque nouvelle position.
 
-*Sans aucune fuite (tout se calcule sur le téléphone) :*
-- **trafic routier** : `showsTraffic` sur `MapView` — la couche est déjà
-  dans les tuiles Apple, aucune coordonnée d'ami n'est envoyée ;
-- **vitesse et état** (« à l'arrêt », « en voiture ») déduits de deux
-  positions successives déjà reçues ;
-- **cap / direction** de déplacement, flèche sur la pastille ;
-- **batterie de l'autre téléphone** : à ajouter au payload chiffré
-  (`expo-battery`), donc invisible du relais ;
-- **habillage DedSec** : fond de carte sombre, lignes de balayage,
-  glitch bref quand une position se met à jour, réticule de visée,
-  compteur en Space Mono. C'est le gros du « plus fun ».
+Le suivi du déplacement vit **en mémoire vive uniquement**
+(`suivreMouvements`, fonction pure) : rien n'est historisé sur le
+disque, donc rien de plus à effacer en cas de vol du téléphone.
 
-*Avec une fuite à assumer explicitement — à trancher avec Kevin :*
+Restent en attente, et **à trancher avec Kevin car elles coûtent en vie
+privée** :
+- **batterie de l'autre téléphone** : demande `expo-battery` (module
+  natif de plus) et un champ de plus dans le payload chiffré — invisible
+  du relais, mais impose de reconstruire les deux téléphones ;
 - **adresse lisible** (« 12 rue X, Lyon ») : le géocodage inverse envoie
   les coordonnées d'un ami chez Apple ou Google ;
 - **itinéraire** vers la personne : même problème.
