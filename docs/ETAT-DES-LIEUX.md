@@ -31,32 +31,42 @@ poussé sur `DarkK3k3/blackout`. **98 tests verts, typecheck propre**
 - Chaîne de **sideload iOS gratuit** : GitHub Actions produit un IPA non
   signé (~19 Mo), Sideloadly l'installe avec un Apple ID gratuit.
 
+Compte Apple (précisé le 2026-07-28) : Kevin a **un compte développeur
+gratuit**, associé à son Apple ID, sans abonnement payé. C'est ce qui
+permet le sideload actuel. Ce qu'un compte gratuit ne permet pas, et
+qu'il ne faut donc pas lui promettre : TestFlight, les notifications
+push (APNs), les App Groups, et une signature qui dure plus de 7 jours.
+
 ## 2. Le point ouvert immédiat : la carte
 
-Retour de Kevin le 2026-07-28 : *« carte mieux mais on peut mieux
-faire »*. **Il n'a pas précisé ce qui le gêne — la première chose à
-faire dans la prochaine conversation est de le lui demander**, avec des
-propositions concrètes plutôt qu'une question ouverte.
+Retour de Kevin le 2026-07-28 : *« carte mieux mais on peut encore
+améliorer, la rendre un peu plus fun, glitché, pourquoi avec des infos
+sur le trafic routier etc… avoir des infos intéressantes quoi »*.
 
 Ce que la carte fait déjà : plein écran, pastilles aux initiales,
 cercles de précision, bandeau « X te voit / ARRETER », bouton « TOUT
 VOIR », bande de cartes-contacts qui glisse (distance à vol d'oiseau,
 ancienneté, ECRIRE / OUBLIER).
 
-Ce qu'un Life360 a et qu'on n'a pas encore — liste de candidats à lui
-soumettre :
+Pistes, classées par ce qu'elles coûtent en vie privée — **c'est le
+critère de tri, pas l'effort** :
 
-- **suivi qui se rafraîchit tout seul** pendant qu'on regarde la carte
-  (aujourd'hui la position ne bouge que quand un message arrive) ;
-- **photo de contact** dans la pastille au lieu des initiales ;
-- **adresse lisible** (« 12 rue X, Lyon ») plutôt que la seule distance
-  — attention : le géocodage inverse d'Apple/Google enverrait les
-  coordonnées d'un ami à un tiers. À trancher explicitement avec lui ;
-- **historique** des dernières positions reçues, ou trace du trajet ;
-- **itinéraire** vers la personne (ouvre Plans — même remarque de fuite) ;
-- **niveau de batterie** du téléphone de l'autre ;
-- gestes : glisser la bande de cartes fait défiler la carte, tapoter la
-  pastille ouvre la fiche, pincer pour zoomer, bouton « me recentrer ».
+*Sans aucune fuite (tout se calcule sur le téléphone) :*
+- **trafic routier** : `showsTraffic` sur `MapView` — la couche est déjà
+  dans les tuiles Apple, aucune coordonnée d'ami n'est envoyée ;
+- **vitesse et état** (« à l'arrêt », « en voiture ») déduits de deux
+  positions successives déjà reçues ;
+- **cap / direction** de déplacement, flèche sur la pastille ;
+- **batterie de l'autre téléphone** : à ajouter au payload chiffré
+  (`expo-battery`), donc invisible du relais ;
+- **habillage DedSec** : fond de carte sombre, lignes de balayage,
+  glitch bref quand une position se met à jour, réticule de visée,
+  compteur en Space Mono. C'est le gros du « plus fun ».
+
+*Avec une fuite à assumer explicitement — à trancher avec Kevin :*
+- **adresse lisible** (« 12 rue X, Lyon ») : le géocodage inverse envoie
+  les coordonnées d'un ami chez Apple ou Google ;
+- **itinéraire** vers la personne : même problème.
 
 Fichiers concernés : `app/src/ui/screens/MapScreen.tsx` (présentation
 pure) et `app/src/ui/screens/mapMath.ts` (calculs purs, testés contre
@@ -65,12 +75,23 @@ d'où la séparation : **garder les calculs hors du composant**).
 
 ## 3. Ce qui reste, dans l'ordre convenu avec Kevin
 
+0. **Relais Cloudflare : le code est écrit et testé** (`relay-worker/`),
+   il reste **à Kevin** de créer un compte Cloudflare gratuit et de
+   lancer `npx wrangler login && npx wrangler deploy` — voir
+   [SETUP-RELAIS.md](SETUP-RELAIS.md). Je ne peux pas créer de compte à
+   sa place. Tant que ce n'est pas fait, le relais du PC reste la seule
+   adresse joignable.
 1. **Peaufiner la carte** (voir ci-dessus).
-2. **Relais permanent sur Cloudflare Workers + Durable Objects**
-   (tâche #10). Aujourd'hui : `node src/server.js` sur le PC de Kevin +
-   `cloudflared tunnel --url http://localhost:8787`. Le tunnel est tombé
-   six fois en une journée et l'adresse change à chaque relance. C'est
-   le principal problème d'infrastructure restant.
+2. **Notifications quand l'app est fermée.** Kevin le regrette
+   explicitement. État des lieux honnête : les notifications *push*
+   exigent APNs, donc un compte développeur Apple **payant** (99 €/an) —
+   son compte gratuit ne les autorise pas. Et même payantes, elles
+   révéleraient à Apple qui reçoit un message et quand. La seule voie
+   sans compromis est `BGTaskScheduler` (relève périodique en tâche de
+   fond, `expo-background-task`) : ça fonctionne avec un compte gratuit,
+   mais iOS décide seul du moment — compter des dizaines de minutes de
+   retard, pas des secondes. À proposer comme un mieux, jamais comme
+   l'équivalent d'une notification instantanée.
 3. **Mesh Bluetooth** (tâche #8). Contrainte connue : sur iOS,
    CoreBluetooth en arrière-plan est très restreint — le mesh ne
    marchera qu'app ouverte. À dire à Kevin avant de coder.
@@ -131,11 +152,25 @@ cd blackout/app && npx tsc --noEmit && npx jest
 ```
 
 ```bash
-cd blackout/relay-server && node src/server.js
+cd blackout/relay-worker && npm test
 ```
 
+Relais Cloudflare en local (vrai moteur, rien n'est envoyé en ligne) :
+
 ```bash
-cloudflared tunnel --url http://localhost:8787
+cd blackout/relay-worker && npm run dev
+```
+
+Mise en ligne (après `npx wrangler login`) :
+
+```bash
+cd blackout/relay-worker && npx wrangler deploy
+```
+
+Ancien relais Node, toujours utilisable en repli :
+
+```bash
+cd blackout/relay-server && node src/server.js
 ```
 
 Test de fumée contre un vrai relais (dans `app/`) :

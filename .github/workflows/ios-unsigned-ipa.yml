@@ -84,6 +84,13 @@ jobs:
         working-directory: app
         run: npm test -- --forceExit
 
+      # Le relais Cloudflare n'a besoin d'aucune dependance pour ses
+      # tests : node:test et node:sqlite suffisent. Wrangler ne sert
+      # qu'a le lancer ou le deployer.
+      - name: Verifier le relais Cloudflare
+        working-directory: relay-worker
+        run: node --test
+
       - name: Generer le projet Xcode
         working-directory: app
         run: npx expo prebuild --platform ios --no-install

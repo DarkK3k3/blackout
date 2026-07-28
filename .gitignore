@@ -8,6 +8,7 @@ node_modules/
 
 # donnees locales du relais (jetons haches, messages en attente)
 /relay-server/data/
+/relay-worker/.wrangler/
 
 # binaires et journaux
 *.exe

@@ -179,6 +179,39 @@ découplé de la couche session — invariant à préserver à jamais.
   sideloadée sans compte développeur payant. Reporté après le relais et
   le mesh.
 
+## 2026-07-28 — Relais permanent sur Cloudflare Workers
+
+Le relais sur le PC derrière un tunnel Cloudflare est tombé une
+douzaine de fois, et son adresse changeait à chaque relance. Portage
+dans `relay-worker/`.
+
+- **Protocole identique au caractère près.** Contrainte volontaire : on
+  ne peut pas mettre à jour les téléphones d'un claquement de doigts
+  (chaque réinstallation coûte un cycle de signature de 7 jours). Seule
+  l'adresse change, dans les réglages. Les tests HTTP vérifient les
+  codes de statut un par un pour cette raison.
+- **Un seul Durable Object** pour tout le relais. L'app ouvre une seule
+  WebSocket et s'y abonne à toutes ses boîtes ; or une socket ne peut
+  être rattachée qu'à un objet. Un objet par boîte imposerait une
+  dizaine de connexions par téléphone et une refonte du client.
+- **SQLite obligatoire** : c'est le seul backend de Durable Object
+  disponible sur le plan gratuit (`new_sqlite_classes`).
+- **Blobs découpés en morceaux de 600 000 caractères** : SQLite refuse
+  toute ligne de plus de 2 Mo, ce que dépasserait une photo chiffrée.
+- **WebSockets en hibernation** (`ctx.acceptWebSocket`) : sans cela
+  l'objet resterait chargé tant qu'un téléphone est connecté et
+  brûlerait le quota gratuit. Corollaire à ne jamais oublier : toute
+  variable d'instance disparaît au réveil, l'état d'abonnement est donc
+  rangé dans la socket (`serializeAttachment`), jamais dans une `Map`.
+- **Colonne `seq`** pour l'ordre des messages : trier sur l'horodatage
+  seul rendait arbitraire l'ordre de messages déposés dans la même
+  milliseconde. Défaut trouvé par un test avant toute mise en ligne.
+- **Découpage testable** : `store.js` et `http.js` n'utilisent aucune
+  API Cloudflare et tournent tels quels sous Node (30 tests). Les 7
+  tests WebSocket tournent contre le vrai moteur Cloudflare lancé en
+  local par `wrangler dev`, et le test de bout en bout de l'app (deux
+  instances libsignal complètes) a été rejoué à travers lui.
+
 ## Points ouverts
 
 - [ ] Compte Expo (EAS) à créer par Kevin — indispensable pour builder

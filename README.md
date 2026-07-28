@@ -14,7 +14,8 @@ blackout/
 │   ├── src/state/          couche d'intégration (ce que l'UI appelle)
 │   ├── src/ui/             thème DedSec, composants, écrans
 │   └── modules/blackout-signal/   module natif Kotlin + Swift → libsignal officiel
-├── relay-server/           serveur relais Node.js (blobs chiffrés uniquement)
+├── relay-worker/           relais en ligne : Cloudflare Workers + Durable Objects
+├── relay-server/           même relais en Node.js (tests d'intégration, repli local)
 ├── crypto-prototype/       prototype pédagogique d'origine (référence)
 ├── tools/                  génération des vecteurs de test
 └── docs/                   installation, sécurité, décisions techniques
@@ -35,6 +36,7 @@ cd blackout/relay-server && npm install && npm test
 | Fichier | Contenu |
 |---|---|
 | [docs/ETAT-DES-LIEUX.md](docs/ETAT-DES-LIEUX.md) | **À lire en premier** : où en est le projet, ce qui reste, ce qu'il ne faut pas refaire |
+| [docs/SETUP-RELAIS.md](docs/SETUP-RELAIS.md) | Mettre le relais en ligne sur Cloudflare, gratuitement et pour de bon |
 | [docs/SETUP-IOS.md](docs/SETUP-IOS.md) | TestFlight pas à pas, ce que tu dois faire côté Apple, variante AltStore PAL |
 | [docs/SETUP-ANDROID.md](docs/SETUP-ANDROID.md) | Build APK signé et installation manuelle |
 | [docs/SECURITY.md](docs/SECURITY.md) | Modèle de menace : ce qui est protégé, ce qui ne l'est pas |

@@ -1,0 +1,23 @@
+# Configuration du relais Blackout sur Cloudflare Workers.
+#
+# Deux commandes suffisent :
+#   npx wrangler dev      -> relais local (rien n'est envoye chez Cloudflare)
+#   npx wrangler deploy   -> mise en ligne, adresse stable en *.workers.dev
+
+name = "blackout-relay"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+# Les Durable Objects a stockage SQLite sont les SEULS disponibles sur le
+# plan gratuit — d'ou `new_sqlite_classes` et non `new_classes`.
+[[durable_objects.bindings]]
+name = "RELAY"
+class_name = "RelayRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RelayRoom"]
+
+# Aucun log d'acces : le relais n'a pas a savoir qui s'y connecte.
+[observability]
+enabled = false
