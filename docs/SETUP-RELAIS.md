@@ -1,5 +1,11 @@
 # Mettre le relais en ligne (Cloudflare)
 
+> **C'est fait.** Depuis le 2026-07-28, le relais tourne à l'adresse
+> **`https://blackout-relay.trzoskikevin.workers.dev`**, vérifiée par
+> les 7 tests WebSocket et par le test de bout en bout de l'app (deux
+> instances libsignal complètes). Cette page reste utile pour
+> comprendre ce qui a été fait, redéployer, ou repartir de zéro.
+
 Objectif : que le relais tourne **24 h/24, à une adresse qui ne change
 plus**, sans ton PC allumé et sans rien payer.
 
@@ -14,7 +20,21 @@ plus jamais.
 
 ---
 
-## Ce que tu dois faire toi (je ne peux pas créer de compte à ta place)
+## Le nom dans l'adresse
+
+Cloudflare avait déjà attribué au compte le sous-domaine
+**`trzoskikevin`** (dérivé de l'adresse mail d'inscription) avant qu'on
+puisse en choisir un. L'adresse du relais contient donc ce mot.
+
+Ça vaut d'être dit clairement : **quiconque voit cette adresse apprend
+ce nom**. Elle ne figure nulle part publiquement — seulement dans les
+réglages des téléphones du groupe — mais si ça te gêne, elle se change
+depuis le tableau de bord Cloudflare (Workers & Pages → paramètres du
+sous-domaine). Attention : changer le sous-domaine **casse l'ancienne
+adresse**, il faut donc la remettre à jour dans l'app sur chaque
+téléphone.
+
+## Refaire la manipulation depuis zéro
 
 ### 1. Un compte Cloudflare gratuit
 

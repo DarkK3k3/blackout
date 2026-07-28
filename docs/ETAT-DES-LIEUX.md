@@ -4,10 +4,11 @@ Document de passation, à lire en premier au début d'une nouvelle
 conversation. Il dit **où on en est, ce qui reste, et ce qu'il ne faut
 surtout pas refaire**. Mis à jour le 2026-07-28.
 
-Dernier commit : `c4394b4` « Ergonomie : zones de securite, clavier,
-carte facon Life360, notifications ». Arbre de travail propre, `main`
-poussé sur `DarkK3k3/blackout`. **98 tests verts, typecheck propre**
-(`npx tsc --noEmit && npx jest` dans `app/`).
+Arbre de travail propre, `main` poussé sur `DarkK3k3/blackout`.
+**98 tests verts côté app** (`npx tsc --noEmit && npx jest` dans `app/`)
+et **37 côté relais Cloudflare** (`node --test` dans `relay-worker/`).
+
+Relais en production : `https://blackout-relay.trzoskikevin.workers.dev`
 
 ---
 
@@ -75,12 +76,10 @@ d'où la séparation : **garder les calculs hors du composant**).
 
 ## 3. Ce qui reste, dans l'ordre convenu avec Kevin
 
-0. **Relais Cloudflare : le code est écrit et testé** (`relay-worker/`),
-   il reste **à Kevin** de créer un compte Cloudflare gratuit et de
-   lancer `npx wrangler login && npx wrangler deploy` — voir
-   [SETUP-RELAIS.md](SETUP-RELAIS.md). Je ne peux pas créer de compte à
-   sa place. Tant que ce n'est pas fait, le relais du PC reste la seule
-   adresse joignable.
+0. ~~Relais permanent~~ **FAIT le 2026-07-28** : en ligne sur
+   `https://blackout-relay.trzoskikevin.workers.dev`, vérifié par les 7
+   tests WebSocket et le test bout en bout de l'app. Reste à Kevin à
+   coller l'adresse dans les réglages de ses deux téléphones.
 1. **Peaufiner la carte** (voir ci-dessus).
 2. **Notifications quand l'app est fermée.** Kevin le regrette
    explicitement. État des lieux honnête : les notifications *push*
