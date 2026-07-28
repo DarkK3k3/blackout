@@ -16,6 +16,12 @@ import { AddContactScreen } from './screens/AddContactScreen';
 import { SettingsScreen, type TestState } from './screens/SettingsScreen';
 import { MapScreen, type SharedLocation, type OutgoingShare } from './screens/MapScreen';
 import { suivreMouvements, type SuiviContact } from './screens/mapMath';
+import { obtenirBlackout } from '../state/instance';
+import {
+  synchroniserSuivi,
+  autorisationArrierePlan,
+  demanderAutorisationArrierePlan,
+} from './backgroundLocation';
 import * as Location from 'expo-location';
 import { LazyQrScanner } from './components/LazyQrScanner';
 import { preparerNotifications, notifierMessage, effacerBadge } from './notifications';
@@ -65,18 +71,15 @@ export function BlackoutApp() {
     let instance: Blackout | null = null;
     (async () => {
       try {
-        const store = await openBlackoutStore();
-        // Les reglages enregistres priment sur les valeurs de
-        // compilation : changer de relais ne doit jamais imposer de
-        // recompiler l'application.
-        const settings = await Blackout.loadSettings(store, {
-          relayUrl: RELAY_URL,
-          displayName: MY_DISPLAY_NAME,
-        });
-        setStore(store);
-        instance = new Blackout(store, nativeSignalBridge, settings.relayUrl, settings.displayName);
-        await instance.init();
+        // Passe par l'instance de module : la tache de fond utilise la
+        // MEME, ce qui garantit une seule base ouverte et un seul etat
+        // de session par contact.
+        instance = await obtenirBlackout();
+        setStore(instance.storeOuvert);
         await preparerNotifications();
+        // Un partage a pu rester ouvert pendant que l'app etait fermee :
+        // on remet le suivi en accord avec ce qui est reellement en cours.
+        void instance.activeSharing().then((p) => synchroniserSuivi(p.length));
         await instance.startListening(
           (conversationId) => {
             setTick((t) => t + 1);
@@ -215,6 +218,7 @@ function MapContainer({ navigation, refreshKey }: any) {
   const [locations, setLocations] = React.useState<SharedLocation[]>([]);
   const [outgoing, setOutgoing] = React.useState<OutgoingShare[]>([]);
   const [granted, setGranted] = React.useState(false);
+  const [fondAutorise, setFondAutorise] = React.useState(true);
   const [myPosition, setMyPosition] = React.useState<{ latitude: number; longitude: number } | null>(null);
   // Suivi du deplacement, en memoire vive uniquement : il disparait
   // avec l'ecran, et il n'y a donc pas d'historique de positions a
@@ -274,7 +278,18 @@ function MapContainer({ navigation, refreshKey }: any) {
     });
   }, [granted]);
 
-  // Diffusion periodique tant qu'un partage est ouvert.
+  // Le suivi en arriere-plan suit l'etat reel des partages : il
+  // demarre au premier, s'arrete au dernier. Rien ne tourne quand plus
+  // personne n'est suivi.
+  React.useEffect(() => {
+    void synchroniserSuivi(outgoing.length);
+    void autorisationArrierePlan().then(setFondAutorise);
+  }, [outgoing.length]);
+
+  // Diffusion periodique tant que l'ECRAN est ouvert. Redondant avec la
+  // tache de fond, et volontairement : a l'ecran, on veut une position
+  // fraiche meme immobile, alors que la tache de fond n'emet qu'apres
+  // un deplacement pour menager la batterie.
   React.useEffect(() => {
     if (outgoing.length === 0) return;
     let arrete = false;
@@ -308,6 +323,13 @@ function MapContainer({ navigation, refreshKey }: any) {
       outgoing={outgoing}
       myPosition={myPosition}
       permissionGranted={granted}
+      backgroundGranted={fondAutorise}
+      onRequestBackground={() => {
+        void demanderAutorisationArrierePlan().then((ok) => {
+          setFondAutorise(ok);
+          if (ok) void synchroniserSuivi(outgoing.length);
+        });
+      }}
       onRequestPermission={() => {
         void Location.requestForegroundPermissionsAsync().then((p) => setGranted(p.granted));
       }}

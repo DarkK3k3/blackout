@@ -57,6 +57,9 @@ export interface MapScreenProps {
   myPosition?: { latitude: number; longitude: number } | null;
   permissionGranted: boolean;
   onRequestPermission: () => void;
+  /** L'autorisation « Toujours » est-elle accordee ? */
+  backgroundGranted?: boolean;
+  onRequestBackground?: () => void;
   onStopSharing: (contactId: string) => void;
   onForget: (contactId: string) => void;
   onOpenChat?: (contactId: string) => void;
@@ -78,6 +81,8 @@ export function MapScreen({
   myPosition,
   permissionGranted,
   onRequestPermission,
+  backgroundGranted = true,
+  onRequestBackground,
   onStopSharing,
   onForget,
   onOpenChat,
@@ -214,7 +219,29 @@ export function MapScreen({
         </View>
       ) : null}
 
-      <View style={[styles.outils, { top: insets.top + (outgoing.length > 0 ? 76 : 12) }]}>
+      {/* Un partage ouvert qui ne suit pas en arriere-plan doit se dire :
+          sinon on croit partager sa position alors qu'elle se fige des
+          qu'on quitte l'ecran. */}
+      {outgoing.length > 0 && !backgroundGranted && onRequestBackground ? (
+        <Pressable
+          onPress={onRequestBackground}
+          accessibilityRole="button"
+          accessibilityLabel="Autoriser le partage quand l'app est fermee"
+          style={[styles.avertissement, { top: insets.top + 76 }]}
+        >
+          <Text style={styles.avertissementTitre}>PARTAGE LIMITE A CET ECRAN</Text>
+          <Text style={styles.avertissementCorps}>
+            Ta position se figera des que tu quitteras l'app. Touche ici pour autoriser « Toujours ».
+          </Text>
+        </Pressable>
+      ) : null}
+
+      <View
+        style={[
+          styles.outils,
+          { top: insets.top + (outgoing.length > 0 ? (backgroundGranted ? 76 : 150) : 12) },
+        ]}
+      >
         {locations.length > 1 ? (
           <Pressable
             onPress={toutVoir}
@@ -368,6 +395,19 @@ const styles = StyleSheet.create({
   },
   bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   bannerRight: { ...type.label, fontSize: 10, color: colors.ember },
+
+  avertissement: {
+    position: 'absolute',
+    left: space.lg,
+    right: space.lg,
+    backgroundColor: 'rgba(16,16,24,0.96)',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warn,
+    padding: space.md,
+    gap: space.xs,
+  },
+  avertissementTitre: { ...type.label, fontSize: 11, color: colors.warn },
+  avertissementCorps: { ...type.meta, color: colors.textDim },
 
   outils: { position: 'absolute', right: space.lg, gap: space.xs, alignItems: 'flex-end' },
   outil: {

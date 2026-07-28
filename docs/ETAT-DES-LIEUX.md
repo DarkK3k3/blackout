@@ -89,8 +89,11 @@ d'où la séparation : **garder les calculs hors du composant**).
    tests WebSocket et le test bout en bout de l'app. Reste à Kevin à
    coller l'adresse dans les réglages de ses deux téléphones.
 1. **Peaufiner la carte** (voir ci-dessus).
-2. **Notifications quand l'app est fermée.** Kevin le regrette
-   explicitement. État des lieux honnête : les notifications *push*
+2. **Notifications quand l'app est fermée** — à ne pas confondre avec la
+   position, qui elle **fonctionne désormais en arrière-plan** (fait le
+   2026-07-28, voir DECISIONS.md). La différence est réelle : la
+   position ne fait intervenir aucun tiers, la notification si.
+   État des lieux honnête : les notifications *push*
    exigent APNs, donc un compte développeur Apple **payant** (99 €/an) —
    son compte gratuit ne les autorise pas. Et même payantes, elles
    révéleraient à Apple qui reçoit un message et quand. La seule voie

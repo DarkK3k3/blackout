@@ -7,6 +7,13 @@ import 'react-native-get-random-values';
 
 import { registerRootComponent } from 'expo';
 
+// La tache de partage de position doit etre DEFINIE au chargement du
+// bundle, avant tout rendu. Quand iOS reveille l'app en arriere-plan
+// pour livrer une position, aucune vue n'est montee : si la definition
+// dependait d'un composant, la tache n'existerait pas au moment ou le
+// systeme l'appelle.
+import './src/ui/backgroundLocation';
+
 import App from './App';
 
 // registerRootComponent appelle AppRegistry.registerComponent('main', () => App)

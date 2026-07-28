@@ -120,6 +120,48 @@ async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 45_000): P
   throw new Error('condition non atteinte dans le delai imparti');
 }
 
+test('des envois simultanes vers le meme contact restent tous dechiffrables', async () => {
+  // Le risque du partage de position en arriere-plan : iOS peut
+  // reveiller la tache pendant que l'app envoie deja. Chiffrer fait
+  // AVANCER la session ; deux envois partis du meme etat produiraient un
+  // message definitivement indechiffrable chez le destinataire.
+  //
+  // HONNETETE SUR CE QUE CE TEST PROUVE : il passe aussi avec le verrou
+  // desactive (verifie). L'ordonnancement de Node ne suffit pas a
+  // declencher la course, et un test qui ne la declenche pas ne peut pas
+  // prouver qu'elle est corrigee. Il tient donc lieu de garde-fou — si
+  // une refonte casse la serialisation de facon plus grossiere, il le
+  // verra — et la protection repose sur le verrou lui-meme, teste
+  // separement dans verrou.test.ts.
+  const bob = await makeApp('Bob');
+  const alice = await makeApp('Alice');
+
+  const invite = await bob.app.createInviteQr();
+  const bobId = await alice.app.acceptInviteQr(invite.encoded);
+  await bob.app.startListening(() => {});
+  await waitFor(async () => (await bob.app.listChats()).length === 1);
+  const aliceId = (await bob.app.listChats())[0].id;
+
+  // Envois lances EN MEME TEMPS, sans attendre les uns les autres.
+  const corps = ['un', 'deux', 'trois', 'quatre', 'cinq'];
+  await Promise.all(corps.map((c) => alice.app.sendText(bobId, c)));
+
+  await waitFor(async () => {
+    const recus = await bob.app.listMessages(aliceId);
+    return corps.every((c) => recus.some((m) => m.body === c));
+  });
+
+  const recus = (await bob.app.listMessages(aliceId)).map((m) => m.body);
+  for (const c of corps) expect(recus).toContain(c);
+
+  // ... et la session reste saine pour la suite.
+  await alice.app.sendText(bobId, 'apres la rafale');
+  await waitFor(async () => (await bob.app.listMessages(aliceId)).some((m) => m.body === 'apres la rafale'));
+
+  alice.app.stopListening();
+  bob.app.stopListening();
+}, 60_000);
+
 test('les reglages priment sur les valeurs de compilation', async () => {
   const store = await BlackoutStore.open(createNodeSqlExecutor());
 

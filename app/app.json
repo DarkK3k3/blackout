@@ -14,14 +14,23 @@
         "NSCameraUsageDescription": "Blackout utilise la caméra uniquement pour scanner les QR codes d'ajout de contact et de vérification.",
         "NSPhotoLibraryUsageDescription": "Blackout accède à vos photos uniquement pour en envoyer dans une conversation chiffrée.",
         "NSBluetoothAlwaysUsageDescription": "Blackout utilise le Bluetooth pour relayer les messages chiffrés entre appareils proches quand internet est indisponible.",
-        "NSLocationWhenInUseUsageDescription": "Blackout partage ta position uniquement avec les contacts que tu choisis, de facon chiffree et pour une duree limitee que tu fixes."
+        "NSLocationWhenInUseUsageDescription": "Blackout partage ta position uniquement avec les contacts que tu choisis, de facon chiffree et pour une duree limitee que tu fixes.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Autorise « Toujours » pour que ta position continue d'etre partagee avec les contacts choisis quand l'app n'est pas a l'ecran. Le partage s'arrete tout seul a l'echeance que tu as fixee.",
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
       "package": "com.kevsvod.blackout",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0F",
@@ -55,7 +64,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Blackout partage ta position uniquement avec les contacts que tu choisis, de facon chiffree et pour une duree limitee que tu fixes."
+          "locationWhenInUsePermission": "Blackout partage ta position uniquement avec les contacts que tu choisis, de facon chiffree et pour une duree limitee que tu fixes.",
+          "locationAlwaysAndWhenInUsePermission": "Autorise « Toujours » pour que ta position continue d'etre partagee avec les contacts choisis quand l'app n'est pas a l'ecran. Le partage s'arrete tout seul a l'echeance que tu as fixee.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [

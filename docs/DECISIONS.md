@@ -212,6 +212,49 @@ dans `relay-worker/`.
   local par `wrangler dev`, et le test de bout en bout de l'app (deux
   instances libsignal complètes) a été rejoué à travers lui.
 
+## 2026-07-28 — Position partagée en arrière-plan
+
+Kevin : « c'est dommage que ça ne peut pas fonctionner en arrière-plan ».
+Contrairement aux notifications push, **iOS l'autorise réellement**, et
+la différence est de fond : une notification push transiterait par les
+serveurs d'Apple, alors qu'ici le système réveille NOTRE code, qui
+chiffre lui-même et poste sur NOTRE relais. Aucun tiers n'apprend quoi
+que ce soit — et aucun compte développeur payant n'est requis
+(`UIBackgroundModes` est une clé Info.plist, pas un entitlement).
+
+- **`expo-task-manager` + `Location.startLocationUpdatesAsync`**. La
+  tâche est définie dans `src/ui/backgroundLocation.ts`, importée depuis
+  `index.ts` **au niveau du module** : quand iOS démarre l'app en
+  arrière-plan, aucune vue n'est montée, donc rien ne peut la définir
+  depuis un composant.
+- **Instance de module** (`src/state/instance.ts`) : l'application ne
+  peut plus vivre uniquement dans un contexte React. Les appels
+  concurrents partagent la même promesse de création — sinon deux
+  instances ouvriraient deux fois la base et feraient avancer deux
+  copies de la même session.
+- **Verrou d'envoi par contact** (`src/state/verrou.ts`) : chiffrer FAIT
+  AVANCER le ratchet, et deux envois partis du même état produiraient un
+  message définitivement indéchiffrable. Le risque était théorique tant
+  qu'on n'envoyait que depuis un écran ouvert ; il devient réel quand
+  iOS peut réveiller la tâche pendant que l'app tourne. **Honnêteté sur
+  la preuve** : le test d'intégration à envois simultanés passe aussi
+  bien avec qu'*sans* le verrou (vérifié en le désactivant) —
+  l'ordonnancement de Node ne déclenche pas la course. La garantie
+  repose donc sur le verrou lui-même, testé isolément (7 tests), pas sur
+  ce test-là, qui n'est qu'un garde-fou.
+- **Batterie** : `distanceInterval: 80` plutôt qu'un intervalle de temps
+  — quelqu'un d'immobile ne consomme rien. Précision `Balanced`, pas
+  `BestForNavigation`. Le suivi démarre au premier partage et s'arrête
+  au dernier ; la tâche se coupe elle-même quand `broadcastLocation`
+  n'a plus aucun destinataire.
+- **`showsBackgroundLocationIndicator: true`** : l'indicateur reste
+  visible. Dans une app comme celle-ci, masquer le fait que la position
+  part serait indéfendable.
+- **L'écran le dit** : si un partage est ouvert sans l'autorisation
+  « Toujours », un bandeau prévient que la position se figera à la
+  sortie de l'app. Croire qu'on partage alors qu'on ne partage plus est
+  pire que ne pas partager.
+
 ## Points ouverts
 
 - [ ] Compte Expo (EAS) à créer par Kevin — indispensable pour builder

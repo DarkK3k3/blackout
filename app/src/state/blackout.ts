@@ -6,6 +6,7 @@
 // des messages en clair, deja dechiffres et deja persistes.
 
 import type { BlackoutStore, LocationFix } from '../storage/store';
+import { VerrouParCle } from './verrou';
 import { SessionManager, type InvitePayload, type Envelope } from '../crypto/sessionManager';
 import type { SignalBridge } from '../crypto/signalBridge.types';
 import { RelayClient } from '../transport/relayClient';
@@ -69,6 +70,17 @@ export class Blackout {
     onActivity: (conversationId: string) => void;
     onStatus?: (s: 'connected' | 'disconnected') => void;
   } | null = null;
+  /** Serialise les envois par contact : voir `send`. */
+  private readonly verrouEnvoi = new VerrouParCle();
+
+  /**
+   * La base ouverte, pour les ecrans qui la manipulent directement
+   * (reglages). Expose en lecture seule : personne ne doit en ouvrir
+   * une seconde.
+   */
+  get storeOuvert(): BlackoutStore {
+    return this.store;
+  }
 
   constructor(
     private store: BlackoutStore,
@@ -228,7 +240,20 @@ export class Blackout {
     await this.send(contactId, { text });
   }
 
-  private async send(contactId: string, payload: MessagePayload): Promise<void> {
+  /**
+   * Envoi serialise par contact.
+   *
+   * Chiffrer FAIT AVANCER la session : deux envois simultanes vers le
+   * meme contact partiraient du meme etat et le second ecraserait le
+   * premier en base, rendant un message definitivement indechiffrable.
+   * Le cas est devenu reel avec le partage de position en arriere-plan,
+   * qu'iOS peut declencher pendant que l'app tourne deja.
+   */
+  private send(contactId: string, payload: MessagePayload): Promise<void> {
+    return this.verrouEnvoi.executer(contactId, () => this._envoyer(contactId, payload));
+  }
+
+  private async _envoyer(contactId: string, payload: MessagePayload): Promise<void> {
     const queues = await this.store.getQueues(contactId);
     if (!queues?.outQueueId || !queues.outWriteToken) throw new Error('aucune boite de sortie pour ce contact');
 
