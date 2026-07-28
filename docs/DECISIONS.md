@@ -146,6 +146,39 @@ découplé de la couche session — invariant à préserver à jamais.
   contact tournait indéfiniment (promesse sans `.catch`). Il affiche
   désormais « RELAIS INJOIGNABLE » avec la marche à suivre.
 
+## 2026-07-28 — Ergonomie : zones de sécurité, clavier, carte, notifications
+
+- **Zones de sécurité** : aucune n'était utilisée, les marges étaient
+  écrites en dur (24 pt là où une Dynamic Island en réserve 59) — d'où
+  le titre masqué. Composant `src/ui/components/Screen.tsx` basé sur
+  `useSafeAreaInsets`. Les tests de rendu montent désormais les écrans
+  dans un `SafeAreaProvider` aux **métriques d'un iPhone à Dynamic
+  Island** (top 59, bottom 34) : le cas fautif est celui qu'on teste.
+- **Clavier qui masquait la saisie** : cause réelle = **deux en-têtes
+  superposés** (celui de la navigation + le nôtre), qui faussaient le
+  calcul de décalage. `headerShown: false` sur l'écran Conversation,
+  `keyboardVerticalOffset={0}`, et bouton retour rajouté dans notre
+  en-tête (le supprimer aurait piégé l'utilisateur dans la conversation).
+  Validé par Kevin.
+- **Carte** : réécrite façon Life360 (plein écran, pastilles à
+  initiales, cercles de précision, bande de cartes-contacts). Les
+  calculs sont sortis dans `mapMath.ts` — react-native-maps ne se
+  charge pas sous Jest, et une distance fausse ne plante pas, elle
+  ment : elle est testée contre des repères réels (Paris–Marseille,
+  Paris–Londres, passage du méridien). Retour de Kevin : « mieux mais on
+  peut mieux faire » — précisions à obtenir, pistes listées dans
+  `ETAT-DES-LIEUX.md`.
+- **Notifications LOCALES et non push** : une notification push
+  transiterait par les serveurs d'Apple et leur révélerait qui reçoit un
+  message et quand — exactement la métadonnée que le projet s'attache à
+  ne pas produire. Contrepartie assumée : elles n'arrivent que si l'app
+  tourne. Le contenu du message n'est jamais affiché (le centre de
+  notifications se lit sur écran verrouillé) : on annonce l'expéditeur.
+- **Live Activities (Dynamic Island animé)** : possible, mais c'est une
+  extension native séparée, coûteuse à faire vivre sur une app
+  sideloadée sans compte développeur payant. Reporté après le relais et
+  le mesh.
+
 ## Points ouverts
 
 - [ ] Compte Expo (EAS) à créer par Kevin — indispensable pour builder

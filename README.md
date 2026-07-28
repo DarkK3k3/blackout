@@ -34,6 +34,7 @@ cd blackout/relay-server && npm install && npm test
 
 | Fichier | Contenu |
 |---|---|
+| [docs/ETAT-DES-LIEUX.md](docs/ETAT-DES-LIEUX.md) | **À lire en premier** : où en est le projet, ce qui reste, ce qu'il ne faut pas refaire |
 | [docs/SETUP-IOS.md](docs/SETUP-IOS.md) | TestFlight pas à pas, ce que tu dois faire côté Apple, variante AltStore PAL |
 | [docs/SETUP-ANDROID.md](docs/SETUP-ANDROID.md) | Build APK signé et installation manuelle |
 | [docs/SECURITY.md](docs/SECURITY.md) | Modèle de menace : ce qui est protégé, ce qui ne l'est pas |
