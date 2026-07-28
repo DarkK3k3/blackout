@@ -36,6 +36,7 @@ cd blackout/relay-server && npm install && npm test
 | Fichier | Contenu |
 |---|---|
 | [docs/ETAT-DES-LIEUX.md](docs/ETAT-DES-LIEUX.md) | **À lire en premier** : où en est le projet, ce qui reste, ce qu'il ne faut pas refaire |
+| [docs/IDEES.md](docs/IDEES.md) | Pistes pour la suite, et ce qui est écarté pour ne pas trahir le modèle |
 | [docs/SETUP-RELAIS.md](docs/SETUP-RELAIS.md) | Mettre le relais en ligne sur Cloudflare, gratuitement et pour de bon |
 | [docs/SETUP-IOS.md](docs/SETUP-IOS.md) | TestFlight pas à pas, ce que tu dois faire côté Apple, variante AltStore PAL |
 | [docs/SETUP-ANDROID.md](docs/SETUP-ANDROID.md) | Build APK signé et installation manuelle |

@@ -17,6 +17,8 @@ import {
 import { CutFrame } from '../components/CutFrame';
 import { GlitchText } from '../components/Glitch';
 import { StatusBadge, IconLock } from '../components/Primitives';
+import { Apparition, PressionVivante } from '../components/Vivant';
+import { vibrerVite } from '../retour';
 import { useSafeInsets } from '../components/Screen';
 import { colors, space, type } from '../theme/tokens';
 
@@ -83,7 +85,13 @@ export function ConversationScreen({
 
   const send = () => {
     const text = draft.trim();
-    if (!text) return;
+    if (!text) {
+      // Un appui qui ne fait rien doit quand meme se sentir : sinon on
+      // se demande si l'app a plante.
+      vibrerVite('echec');
+      return;
+    }
+    vibrerVite('envoi');
     onSend(text);
     setDraft('');
   };
@@ -132,7 +140,14 @@ export function ConversationScreen({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         renderItem={({ item }) => (
-          <View style={[styles.bubbleWrap, item.mine ? styles.mineWrap : styles.theirsWrap]}>
+          // Les messages entrent par leur cote : les miens depuis la
+          // droite, ceux d'en face depuis la gauche. La conversation
+          // "arrive" au lieu d'apparaitre d'un bloc.
+          <Apparition
+            depuis={item.mine ? 'droite' : 'gauche'}
+            duree={item.fresh ? 260 : 0}
+            style={[styles.bubbleWrap, item.mine ? styles.mineWrap : styles.theirsWrap]}
+          >
             <CutFrame
               accent={item.mine ? colors.ember : colors.line}
               fill={item.mine ? colors.panelRaised : colors.panel}
@@ -159,7 +174,7 @@ export function ConversationScreen({
                 </View>
               </View>
             </CutFrame>
-          </View>
+          </Apparition>
         )}
       />
 
@@ -239,15 +254,18 @@ export function ConversationScreen({
             <Text style={[styles.photoGlyph, partageActif && { color: colors.ember }]}>◉</Text>
           </Pressable>
         ) : null}
-        <Pressable
+        <PressionVivante
           onPress={send}
-          disabled={!draft.trim()}
+          // Volontairement PAS `disabled` : un bouton mort ne dit pas
+          // pourquoi il ne repond pas. Ici l'appui a vide donne un
+          // retour d'echec, et on comprend qu'il manque le texte.
+          retour={null}
           accessibilityRole="button"
           accessibilityLabel="Envoyer"
-          style={({ pressed }) => [styles.sendButton, { opacity: !draft.trim() ? 0.35 : pressed ? 0.7 : 1 }]}
+          style={[styles.sendButton, { opacity: draft.trim() ? 1 : 0.35 }]}
         >
           <Text style={styles.sendLabel}>▶</Text>
-        </Pressable>
+        </PressionVivante>
       </View>
     </KeyboardAvoidingView>
   );

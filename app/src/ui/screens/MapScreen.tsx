@@ -16,6 +16,7 @@ import MapView, { Marker, Circle, PROVIDER_DEFAULT, type Region } from 'react-na
 import { CutFrame } from '../components/CutFrame';
 import { ActionButton, StatusBadge } from '../components/Primitives';
 import { GlitchText, Scanlines } from '../components/Glitch';
+import { Battement, PressionVivante } from '../components/Vivant';
 import { useSafeInsets } from '../components/Screen';
 import {
   distanceM,
@@ -176,18 +177,30 @@ export function MapScreen({
               anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={false}
             >
-              <View
-                style={[
-                  styles.pin,
-                  { borderColor: l.verified ? colors.cyan : colors.warn },
-                  selection === l.contactId && styles.pinSelected,
-                  // Une position perimee ne doit pas avoir l'air aussi
-                  // sure que les autres : on regarde une carte pour
-                  // savoir ou quelqu'un est MAINTENANT.
-                  estPerimee(l) && styles.pinPerime,
-                ]}
-              >
-                <Text style={styles.pinText}>{initiales(l.displayName)}</Text>
+              <View style={styles.pinBoite}>
+                {/* Anneau FIXE, pas anime : un marqueur est capture une
+                    fois par la carte (tracksViewChanges={false}), une
+                    animation a l'interieur resterait figee. Le battement
+                    vit sur la fiche du contact, plus bas, ou il tourne
+                    vraiment. */}
+                {fraicheur(l.measuredAt) === 'DIRECT' ? (
+                  <View
+                    style={[styles.pinHalo, { borderColor: l.verified ? colors.cyan : colors.warn }]}
+                  />
+                ) : null}
+                <View
+                  style={[
+                    styles.pin,
+                    { borderColor: l.verified ? colors.cyan : colors.warn },
+                    selection === l.contactId && styles.pinSelected,
+                    // Une position perimee ne doit pas avoir l'air aussi
+                    // sure que les autres : on regarde une carte pour
+                    // savoir ou quelqu'un est MAINTENANT.
+                    estPerimee(l) && styles.pinPerime,
+                  ]}
+                >
+                  <Text style={styles.pinText}>{initiales(l.displayName)}</Text>
+                </View>
               </View>
             </Marker>
           </React.Fragment>
@@ -282,8 +295,18 @@ export function MapScreen({
                 style={[styles.card, { width: CARD_WIDTH }]}
               >
                 <View style={styles.cardInner}>
-                  <View style={[styles.avatar, { borderColor: l.verified ? colors.cyan : colors.warn }]}>
-                    <Text style={styles.avatarText}>{initiales(l.displayName)}</Text>
+                  <View style={styles.avatarBoite}>
+                    {/* Ici le battement tourne pour de vrai : on est dans
+                        une vue normale, pas dans un marqueur de carte. */}
+                    <Battement
+                      actif={fraicheur(l.measuredAt) === 'DIRECT'}
+                      style={[styles.avatarHalo, { borderColor: l.verified ? colors.cyan : colors.warn }]}
+                    >
+                      <View />
+                    </Battement>
+                    <View style={[styles.avatar, { borderColor: l.verified ? colors.cyan : colors.warn }]}>
+                      <Text style={styles.avatarText}>{initiales(l.displayName)}</Text>
+                    </View>
                   </View>
                   <View style={styles.cardText}>
                     {/* La resolution glitch se rejoue a chaque nouvelle
@@ -363,6 +386,16 @@ const styles = StyleSheet.create({
   emptyBody: { ...type.body, color: colors.textFaint, textAlign: 'center' },
   emptyNote: { ...type.meta, color: colors.textFaint, textAlign: 'center', marginTop: space.lg },
 
+  pinBoite: { alignItems: 'center', justifyContent: 'center' },
+  pinHalo: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    borderWidth: 1,
+    borderRadius: 4,
+    opacity: 0.5,
+    transform: [{ rotate: '45deg' }],
+  },
   pin: {
     width: 42,
     height: 42,
@@ -425,6 +458,14 @@ const styles = StyleSheet.create({
   cardsContent: { paddingHorizontal: space.lg, gap: space.sm },
   card: { marginRight: space.sm },
   cardInner: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md },
+  avatarBoite: { alignItems: 'center', justifyContent: 'center' },
+  avatarHalo: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderWidth: 2,
+    borderRadius: 4,
+  },
   avatar: {
     width: 44,
     height: 44,

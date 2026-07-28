@@ -2,9 +2,11 @@
 // Tout est a angles francs : pas d'arrondi mou, formes geometriques.
 
 import React from 'react';
-import { Pressable, Text, View, StyleSheet, type ViewStyle } from 'react-native';
+import { Text, View, StyleSheet, type ViewStyle } from 'react-native';
 import Svg, { Path, Polygon, Circle, Line } from 'react-native-svg';
 import { CutFrame } from './CutFrame';
+import { PressionVivante } from './Vivant';
+import type { Retour } from '../retour';
 import { colors, space, type } from '../theme/tokens';
 
 // ---------------------------------------------------------------- bouton
@@ -14,26 +16,30 @@ export function ActionButton({
   onPress,
   accent = colors.ember,
   disabled = false,
+  retour = 'toucher',
   style,
 }: {
   label: string;
   onPress: () => void;
   accent?: string;
   disabled?: boolean;
+  /** Retour tactile associe : voir le vocabulaire dans `retour.ts`. */
+  retour?: Retour | null;
   style?: ViewStyle;
 }) {
   return (
-    <Pressable
+    <PressionVivante
       onPress={onPress}
       disabled={disabled}
+      retour={retour}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [{ opacity: disabled ? 0.35 : pressed ? 0.7 : 1 }, style]}
+      style={[{ opacity: disabled ? 0.35 : 1 }, style as ViewStyle]}
     >
       <CutFrame accent={accent} fill={colors.panel} corners={['tl', 'br']} cut={10}>
         <Text style={styles.actionLabel}>{label.toUpperCase()}</Text>
       </CutFrame>
-    </Pressable>
+    </PressionVivante>
   );
 }
 
