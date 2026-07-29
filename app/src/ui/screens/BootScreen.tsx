@@ -36,6 +36,26 @@ export interface BootScreenProps {
   erreur?: string | null;
 }
 
+/**
+ * Duree minimale d'affichage.
+ *
+ * L'ouverture est devenue rapide : sans plancher, l'ecran passait en un
+ * clignement, et seule la toute premiere ouverture (migrations de base)
+ * durait assez pour se voir. Ce n'est pas un faux chargement — les
+ * etapes affichees restent vraies, on garde simplement l'ecran le temps
+ * de le lire.
+ */
+export const DUREE_MINIMALE_MS = 1600;
+
+/**
+ * Temps restant avant d'avoir le droit de quitter l'ecran.
+ *
+ * Fonction pure, donc testable sans horloge ni composant.
+ */
+export function resteAAfficher(debut: number, maintenant: number, minimum = DUREE_MINIMALE_MS): number {
+  return Math.max(0, minimum - (maintenant - debut));
+}
+
 const MARQUE: Record<EtapeBoot['etat'], string> = {
   attente: '···',
   ok: 'OK',

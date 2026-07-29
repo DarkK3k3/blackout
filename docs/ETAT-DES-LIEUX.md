@@ -102,7 +102,13 @@ d'où la séparation : **garder les calculs hors du composant**).
    mais iOS décide seul du moment — compter des dizaines de minutes de
    retard, pas des secondes. À proposer comme un mieux, jamais comme
    l'équivalent d'une notification instantanée.
-3. **Mesh Bluetooth** (tâche #8). Contrainte connue : sur iOS,
+3. **Mesh Bluetooth** (tâche #8) — **le cœur est fait et testé**
+   (`app/src/mesh/`, 27 tests) : paquets, sacoche stockage-et-transport,
+   découpage/réassemblage, protocole de rencontre. Il reste **la radio** :
+   un module natif MultipeerConnectivity (react-native-ble-plx est
+   écarté, il ne sait pas annoncer, voir DECISIONS.md). Ce module ne
+   peut être validé qu'avec les deux iPhones de Kevin.
+   Contrainte connue : sur iOS,
    CoreBluetooth en arrière-plan est très restreint — le mesh ne
    marchera qu'app ouverte. À dire à Kevin avant de coder.
 4. **Photos dans les conversations** (le stockage et le transport sont

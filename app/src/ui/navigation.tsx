@@ -17,7 +17,7 @@ import { SettingsScreen, type TestState } from './screens/SettingsScreen';
 import { MapScreen, type SharedLocation, type OutgoingShare } from './screens/MapScreen';
 import { suivreMouvements, type SuiviContact } from './screens/mapMath';
 import { obtenirBlackout } from '../state/instance';
-import { BootScreen, type EtapeBoot } from './screens/BootScreen';
+import { BootScreen, resteAAfficher, type EtapeBoot } from './screens/BootScreen';
 import { exporterSauvegarde, importerSauvegarde } from '../storage/sauvegarde';
 import { partagerArchive, choisirArchive } from './sauvegardeFichier';
 import { vibrerVite } from './retour';
@@ -83,6 +83,21 @@ export function BlackoutApp() {
     setEtapes((precedentes) => precedentes.map((e, i) => (i === index ? { ...e, etat } : e)));
   }, []);
 
+  // L'ecran de demarrage ne doit pas passer en un clignement : sans
+  // plancher, seule la toute premiere ouverture (migrations de base)
+  // durait assez pour se voir.
+  const debutRef = React.useRef(Date.now());
+  const [plancherAtteint, setPlancherAtteint] = React.useState(false);
+  React.useEffect(() => {
+    const attente = resteAAfficher(debutRef.current, Date.now());
+    if (attente === 0) {
+      setPlancherAtteint(true);
+      return undefined;
+    }
+    const id = setTimeout(() => setPlancherAtteint(true), attente);
+    return () => clearTimeout(id);
+  }, []);
+
   React.useEffect(() => {
     let instance: Blackout | null = null;
     (async () => {
@@ -121,7 +136,9 @@ export function BlackoutApp() {
     return () => instance?.stopListening();
   }, [marquer]);
 
-  if (error || !app) {
+  // Une erreur reste affichee sans plancher : on ne fait pas patienter
+  // quelqu'un devant un echec.
+  if (error || !app || !plancherAtteint) {
     return <BootScreen etapes={etapes} erreur={error} />;
   }
 

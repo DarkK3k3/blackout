@@ -255,6 +255,47 @@ que ce soit — et aucun compte développeur payant n'est requis
   sortie de l'app. Croire qu'on partage alors qu'on ne partage plus est
   pire que ne pas partager.
 
+## 2026-07-29 — Mesh : le cœur, et le choix de la radio
+
+Le mesh est **un transport de plus**, pas une nouvelle sécurité : il
+transporte exactement le blob déjà chiffré par libsignal. Un téléphone
+qui relaie ne peut pas plus lire le message qu'un serveur ne le
+pourrait. Il voit l'identifiant de la boîte de destination — inévitable,
+et c'est déjà ce que voit le relais. **Aucune métadonnée nouvelle n'est
+créée**, et le paquet ne porte aucun expéditeur.
+
+Écrit et testé (27 tests, `app/src/mesh/`) :
+- `paquet.ts` — TTL en sauts (6 max), expiration 24 h, et validation
+  stricte de tout ce qui arrive par la radio, y compris le refus d'un
+  compteur de sauts gonflé (un voisin malveillant ferait tourner son
+  paquet indéfiniment) ;
+- `sacoche.ts` — stockage-et-transport : mémoire des identifiants
+  **déjà vus** (sans elle, un paquet remis puis recroisé repartirait en
+  boucle), capacité plafonnée, éviction des plus anciens ;
+- `trames.ts` — découpage/réassemblage pour une radio à petits blocs,
+  avec plafond d'assemblages en cours et expiration : sans ça, envoyer
+  des débuts de messages jamais terminés remplirait la mémoire ;
+- `rencontre.ts` — trois messages (RESUME / DEMANDE / PAQUETS), sans
+  identification ni poignée de main : deux inconnus s'entraident sans
+  rien s'apprendre.
+
+Le scénario central est couvert par un test : Alice et Bob ne se
+croisent jamais, Charlie croise les deux, le message arrive.
+
+**Radio : react-native-ble-plx est écarté.** Il ne sait qu'être
+*central* — il ne peut pas annoncer. Or un mesh iPhone↔iPhone exige que
+chaque appareil soit à la fois central et périphérique. Deux options
+restent : écrire un module natif CoreBluetooth complet (long, et le
+Bluetooth en arrière-plan sur iOS est très restreint), ou utiliser
+**MultipeerConnectivity**, le framework d'Apple prévu exactement pour
+ça, qui gère découverte et transfert sur Bluetooth *et* Wi-Fi direct.
+Kevin n'ayant que des iPhones, MultipeerConnectivity est retenu pour la
+première version ; Android suivra via BLE/Nearby si le besoin apparaît.
+
+**Pas encore fait** : le module natif de radio. Il ne peut pas être
+validé sans deux appareils, et la règle du projet interdit de livrer du
+code non testé.
+
 ## Points ouverts
 
 - [ ] Compte Expo (EAS) à créer par Kevin — indispensable pour builder
