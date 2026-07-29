@@ -26,6 +26,12 @@ export interface SettingsScreenProps {
   onChangeDisplayName: (name: string) => void;
   onTest: () => void;
   onSave: () => void;
+  /** Produit une archive chiffree et ouvre le partage systeme. */
+  onExporter?: (phrase: string) => void;
+  /** Choisit un fichier et le restaure. */
+  onImporter?: (phrase: string) => void;
+  /** Compte rendu de la derniere operation de sauvegarde. */
+  etatSauvegarde?: string | null;
 }
 
 export function SettingsScreen({
@@ -37,7 +43,14 @@ export function SettingsScreen({
   onChangeDisplayName,
   onTest,
   onSave,
+  onExporter,
+  onImporter,
+  etatSauvegarde = null,
 }: SettingsScreenProps) {
+  // La phrase ne quitte jamais cet ecran : elle sert a deriver la cle,
+  // et n'est enregistree nulle part.
+  const [phrase, setPhrase] = React.useState('');
+
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <Text style={styles.kicker}>SERVEUR RELAIS</Text>
@@ -98,6 +111,55 @@ export function SettingsScreen({
       </CutFrame>
 
       <ActionButton label="Enregistrer" onPress={onSave} style={styles.save} />
+
+      {onExporter || onImporter ? (
+        <>
+          <Text style={styles.kicker}>SAUVEGARDE</Text>
+          <CutFrame accent={colors.warn} corners={['tl', 'br']}>
+            <View style={styles.panel}>
+              <Text style={styles.note}>
+                Sans sauvegarde, un telephone perdu emporte tout : identite, contacts,
+                conversations. Il n'existe aucun serveur pour s'en souvenir a ta place —
+                c'est le prix d'une messagerie sans compte.
+              </Text>
+              <TextInput
+                value={phrase}
+                onChangeText={setPhrase}
+                placeholder="Phrase secrete (10 caracteres minimum)"
+                placeholderTextColor={colors.textFaint}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                style={styles.input}
+                accessibilityLabel="Phrase secrete de la sauvegarde"
+              />
+              <Text style={styles.note}>
+                Cette phrase protege l'archive, et elle seule. Personne ne peut te la
+                redonner : oubliee, la sauvegarde est definitivement illisible.
+              </Text>
+              <View style={styles.row}>
+                {onExporter ? (
+                  <ActionButton
+                    label="Exporter"
+                    onPress={() => onExporter(phrase)}
+                    accent={colors.cyan}
+                    style={styles.flex}
+                  />
+                ) : null}
+                {onImporter ? (
+                  <ActionButton
+                    label="Restaurer"
+                    onPress={() => onImporter(phrase)}
+                    accent={colors.warn}
+                    style={styles.flex}
+                  />
+                ) : null}
+              </View>
+              {etatSauvegarde ? <Text style={styles.note}>{etatSauvegarde}</Text> : null}
+            </View>
+          </CutFrame>
+        </>
+      ) : null}
     </ScrollView>
   );
 }

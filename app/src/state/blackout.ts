@@ -523,6 +523,9 @@ export class Blackout {
         lastMessage: last?.body ?? null,
         lastAt: last?.sentAt ?? null,
         verified: c.verified,
+        // Sert a dessiner l'empreinte visuelle du contact : elle change
+        // si la cle change, donc une usurpation se voit.
+        identityKey: c.identityKey,
       });
     }
     return chats.sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0));

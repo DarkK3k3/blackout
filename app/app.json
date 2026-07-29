@@ -75,7 +75,8 @@
         {
           "color": "#FF3B1F"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

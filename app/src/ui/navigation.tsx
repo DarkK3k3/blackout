@@ -17,6 +17,10 @@ import { SettingsScreen, type TestState } from './screens/SettingsScreen';
 import { MapScreen, type SharedLocation, type OutgoingShare } from './screens/MapScreen';
 import { suivreMouvements, type SuiviContact } from './screens/mapMath';
 import { obtenirBlackout } from '../state/instance';
+import { BootScreen, type EtapeBoot } from './screens/BootScreen';
+import { exporterSauvegarde, importerSauvegarde } from '../storage/sauvegarde';
+import { partagerArchive, choisirArchive } from './sauvegardeFichier';
+import { vibrerVite } from './retour';
 import {
   synchroniserSuivi,
   autorisationArrierePlan,
@@ -67,6 +71,18 @@ export function BlackoutApp() {
   const [relayConnected, setRelayConnected] = React.useState(false);
   const [tick, setTick] = React.useState(0); // force le rafraichissement des listes
 
+  // Les etapes affichees au demarrage sont de VRAIS etats, pas une
+  // barre de progression decorative : quand quelque chose echoue, on
+  // voit lequel.
+  const [etapes, setEtapes] = React.useState<EtapeBoot[]>([
+    { libelle: 'coffre local dechiffre', etat: 'attente' },
+    { libelle: 'identite chargee', etat: 'attente' },
+    { libelle: 'ecoute du relais', etat: 'attente' },
+  ]);
+  const marquer = React.useCallback((index: number, etat: EtapeBoot['etat']) => {
+    setEtapes((precedentes) => precedentes.map((e, i) => (i === index ? { ...e, etat } : e)));
+  }, []);
+
   React.useEffect(() => {
     let instance: Blackout | null = null;
     (async () => {
@@ -75,7 +91,9 @@ export function BlackoutApp() {
         // MEME, ce qui garantit une seule base ouverte et un seul etat
         // de session par contact.
         instance = await obtenirBlackout();
+        marquer(0, 'ok');
         setStore(instance.storeOuvert);
+        marquer(1, (await instance.storeOuvert.getIdentity()) ? 'ok' : 'echec');
         await preparerNotifications();
         // Un partage a pu rester ouvert pendant que l'app etait fermee :
         // on remet le suivi en accord avec ce qui est reellement en cours.
@@ -91,29 +109,20 @@ export function BlackoutApp() {
           },
           (status) => setRelayConnected(status === 'connected'),
         );
+        marquer(2, 'ok');
         setApp(instance);
       } catch (e) {
+        setEtapes((precedentes) =>
+          precedentes.map((etape) => (etape.etat === 'attente' ? { ...etape, etat: 'echec' } : etape)),
+        );
         setError(e instanceof Error ? e.message : String(e));
       }
     })();
     return () => instance?.stopListening();
-  }, []);
+  }, [marquer]);
 
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorTitle}>DEMARRAGE IMPOSSIBLE</Text>
-        <Text style={styles.errorBody}>{error}</Text>
-      </View>
-    );
-  }
-  if (!app) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.ember} />
-        <Text style={styles.loading}>DECHIFFREMENT DU COFFRE LOCAL…</Text>
-      </View>
-    );
+  if (error || !app) {
+    return <BootScreen etapes={etapes} erreur={error} />;
   }
 
   return (
@@ -353,6 +362,7 @@ function SettingsContainer({ navigation, store }: any) {
   const [displayName, setDisplayName] = React.useState('');
   const [myKey, setMyKey] = React.useState('');
   const [testState, setTestState] = React.useState<TestState>({ kind: 'idle' });
+  const [etatSauvegarde, setEtatSauvegarde] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!store) return;
@@ -376,6 +386,63 @@ function SettingsContainer({ navigation, store }: any) {
         setTestState({ kind: 'idle' });
       }}
       onChangeDisplayName={setDisplayName}
+      etatSauvegarde={etatSauvegarde}
+      onExporter={(phrase) => {
+        if (!store) return;
+        setEtatSauvegarde('Chiffrement de la sauvegarde…');
+        void exporterSauvegarde(store, phrase)
+          .then((archive) => partagerArchive(archive))
+          .then(({ partage }) => {
+            vibrerVite('succes');
+            setEtatSauvegarde(
+              partage
+                ? 'Sauvegarde prete : range-la ou tu veux, elle est inutilisable sans ta phrase.'
+                : 'Sauvegarde ecrite, mais aucun moyen de partage disponible sur cet appareil.',
+            );
+          })
+          .catch((e) => {
+            vibrerVite('echec');
+            setEtatSauvegarde(e instanceof Error ? e.message : String(e));
+          });
+      }}
+      onImporter={(phrase) => {
+        if (!store) return;
+        // Une restauration ECRASE tout : elle ne doit jamais partir
+        // d'une simple pression, encore moins par erreur.
+        Alert.alert(
+          'Restaurer une sauvegarde',
+          "Tout le contenu actuel de cet appareil sera remplace. Les conversations en cours peuvent devenir illisibles si la sauvegarde est ancienne.",
+          [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Restaurer',
+              style: 'destructive',
+              onPress: () => {
+                setEtatSauvegarde('Lecture du fichier…');
+                void choisirArchive()
+                  .then((texte) => {
+                    if (!texte) {
+                      setEtatSauvegarde(null);
+                      return null;
+                    }
+                    return importerSauvegarde(store, texte, phrase, { remplacer: true });
+                  })
+                  .then((bilan) => {
+                    if (!bilan) return;
+                    vibrerVite('succes');
+                    setEtatSauvegarde(
+                      `Restauration terminee : ${bilan.lignes} elements. Ferme et rouvre l'application.`,
+                    );
+                  })
+                  .catch((e) => {
+                    vibrerVite('echec');
+                    setEtatSauvegarde(e instanceof Error ? e.message : String(e));
+                  });
+              },
+            },
+          ],
+        );
+      }}
       onTest={() => {
         setTestState({ kind: 'testing' });
         void Blackout.testRelay(relayUrl)

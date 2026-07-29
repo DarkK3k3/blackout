@@ -9,6 +9,8 @@ import { CutFrame } from '../components/CutFrame';
 import { Scanlines } from '../components/Glitch';
 import { ActionButton, StatusBadge, IconLock, IconMesh, LogoMark } from '../components/Primitives';
 import { Screen } from '../components/Screen';
+import { Avatar } from '../components/Avatar';
+import { PressionVivante } from '../components/Vivant';
 import { colors, space, type } from '../theme/tokens';
 
 export interface ChatSummary {
@@ -19,6 +21,8 @@ export interface ChatSummary {
   lastAt: number | null;
   verified: boolean;
   memberCount?: number;
+  /** Cle publique du contact : sert a dessiner son empreinte visuelle. */
+  identityKey?: string;
 }
 
 export interface ChatListScreenProps {
@@ -103,37 +107,44 @@ export function ChatListScreen({
           </Text>
         }
         renderItem={({ item }) => (
-          <Pressable
-            onPress={() => onOpenChat(item.id)}
-            accessibilityRole="button"
-            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-          >
+          <PressionVivante onPress={() => onOpenChat(item.id)} accessibilityRole="button">
             <CutFrame
               accent={item.verified ? colors.cyan : colors.line}
               corners={['tl']}
               cut={10}
               style={styles.row}
             >
-              <View style={styles.rowInner}>
-                <View style={styles.rowTop}>
-                  <Text style={styles.chatTitle} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.time}>{timeLabel(item.lastAt)}</Text>
-                </View>
-                <View style={styles.rowBottom}>
-                  <Text style={styles.preview} numberOfLines={1}>
-                    {item.lastMessage ?? '—'}
-                  </Text>
-                  {item.verified ? (
-                    <StatusBadge label="verifie" color={colors.cyan} />
-                  ) : (
-                    <StatusBadge label="non verifie" color={colors.warn} active={false} />
-                  )}
+              <View style={styles.rowAvecAvatar}>
+                {/* L'empreinte visuelle est calculee a partir de la cle :
+                    si la cle change, le motif change, et l'anomalie se
+                    voit sans ouvrir de menu. */}
+                <Avatar
+                  cleIdentite={item.identityKey ?? ''}
+                  initiales={item.title.slice(0, 2).toUpperCase()}
+                  verifie={item.verified}
+                  taille={40}
+                />
+                <View style={styles.rowInner}>
+                  <View style={styles.rowTop}>
+                    <Text style={styles.chatTitle} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.time}>{timeLabel(item.lastAt)}</Text>
+                  </View>
+                  <View style={styles.rowBottom}>
+                    <Text style={styles.preview} numberOfLines={1}>
+                      {item.lastMessage ?? '—'}
+                    </Text>
+                    {item.verified ? (
+                      <StatusBadge label="verifie" color={colors.cyan} />
+                    ) : (
+                      <StatusBadge label="non verifie" color={colors.warn} active={false} />
+                    )}
+                  </View>
                 </View>
               </View>
             </CutFrame>
-          </Pressable>
+          </PressionVivante>
         )}
       />
 
@@ -165,7 +176,8 @@ const styles = StyleSheet.create({
   statusItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   list: { paddingHorizontal: space.lg, gap: space.sm, paddingBottom: space.xl },
   row: { marginBottom: space.sm },
-  rowInner: { padding: space.md, gap: space.xs },
+  rowAvecAvatar: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md },
+  rowInner: { flex: 1, gap: space.xs },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.sm },
   chatTitle: { ...type.title, color: colors.text, flexShrink: 1 },
   time: { ...type.dataSmall, color: colors.textDim },
